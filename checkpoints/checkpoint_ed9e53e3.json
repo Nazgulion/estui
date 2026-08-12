@@ -1,0 +1,12 @@
+{
+  "id": "ed9e53e3",
+  "task_goal": "Fix flip button arrow direction to match data flow, and fix GetIndexDetail JSON parsing crash for single-index responses",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Arrow direction and JSON parsing fixed. Build clean."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-10T00:08:32.704987"
+}

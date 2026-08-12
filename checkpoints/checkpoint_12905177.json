@@ -1,0 +1,12 @@
+{
+  "id": "12905177",
+  "task_goal": "Implement multi-select + actions (delete/open/close) in indices tab with confirm modal, disk usage/watermark inspection in migration tab, live migration progress with bar + step logs",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "All features complete: multi-select, actions with confirm, disk inspection, migration logs/progress."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T11:30:02.161953"
+}

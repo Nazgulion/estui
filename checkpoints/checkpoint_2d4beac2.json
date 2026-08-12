@@ -1,0 +1,12 @@
+{
+  "id": "2d4beac2",
+  "task_goal": "Add editable tags/labels next to Node A and Node B connection inputs, displayed throughout UI",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Target index auto-close after successful migration."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-10T22:53:32.474388"
+}

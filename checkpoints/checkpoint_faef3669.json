@@ -1,0 +1,12 @@
+{
+  "id": "faef3669",
+  "task_goal": "Add overwrite/skip toggle for existing indices on target during migration \u2014 checkbox in confirm modal, server respects 'overwrite' flag in migrate request",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Overwrite/skip toggle implemented. API tested both paths. Build + vet clean."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T16:33:35.688459"
+}

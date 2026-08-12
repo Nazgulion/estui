@@ -1,0 +1,12 @@
+{
+  "id": "dca8ef5d",
+  "task_goal": "Test full TUI with 50-index dataset: verify indices tab display, regex filter, detail popup; verify reindex tab side-by-side panels, hjkl navigation, direction flip, multi-select; run small migration (3 indices) to verify end-to-end flow including settings/mappings preservation and doc count verification",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "All tests pass. Both clusters: 50 indices each. Migration: bidirectional, read-only settings stripped, docs preserved, cross-container reindex works. Binary: clean build, both connections up."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T09:43:42.761206"
+}

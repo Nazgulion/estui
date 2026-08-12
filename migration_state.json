@@ -1,0 +1,304 @@
+{
+  "history": [
+    {
+      "description": "Sync prod and stage",
+      "direction": "source-\u003etarget",
+      "source": {
+        "host": "http://localhost:9200",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "l3ObuastR2mG5gSYW-HMiQ"
+      },
+      "dest": {
+        "host": "http://localhost:9201",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "1lX-ChJDQ-mulEVl-Qvo7g"
+      },
+      "indices": [
+        {
+          "name": "tgt-00",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-01",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-02",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-03",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-04",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-05",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-06",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-07",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-08",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-09",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-10",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-11",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 0
+        },
+        {
+          "name": "tgt-12",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-13",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-14",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-15",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-16",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-17",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-18",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-19",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-20",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-21",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-22",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-23",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-24",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-25",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-26",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-27",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-28",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-29",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-30",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-31",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-32",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-33",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-34",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-35",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-36",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-37",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-38",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-39",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-40",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-41",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        },
+        {
+          "name": "tgt-42",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 14
+        },
+        {
+          "name": "tgt-43",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 17
+        },
+        {
+          "name": "tgt-44",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 20
+        },
+        {
+          "name": "tgt-45",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 8
+        },
+        {
+          "name": "tgt-46",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 11
+        }
+      ],
+      "started_at": "2026-08-11T12:25:25+02:00",
+      "completed_at": "2026-08-11T12:28:34+02:00"
+    }
+  ]
+}

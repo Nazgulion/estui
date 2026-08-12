@@ -1,0 +1,12 @@
+{
+  "id": "76c76c79",
+  "task_goal": "Implement Option B: scroll+bulk migration fallback when native _reindex fails (clusters can't see each other)",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Option B scroll+bulk fallback implemented and tested. Native reindex still preferred when clusters can see each other."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-10T00:33:12.176837"
+}

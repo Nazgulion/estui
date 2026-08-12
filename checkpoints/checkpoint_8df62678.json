@@ -1,0 +1,12 @@
+{
+  "id": "8df62678",
+  "task_goal": "Test full TUI with 50-index dataset: verify indices tab display, regex filter, detail popup; verify reindex tab side-by-side panels, hjkl navigation, direction flip, multi-select; run small migration (3 indices) to verify end-to-end flow including settings/mappings preservation and doc count verification",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Data integrity verified \u2014 50 indices each, ready for UI testing"
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T09:36:07.189283"
+}

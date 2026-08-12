@@ -1,0 +1,12 @@
+{
+  "id": "86747b6d",
+  "task_goal": "Add scrolling to index tables in web UI so long lists don't push content off screen",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Table scrolling added \u2014 indices scrolls vertically, migration panels scroll independently."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T11:11:05.534688"
+}

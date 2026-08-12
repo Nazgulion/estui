@@ -1,0 +1,12 @@
+{
+  "id": "595d008d",
+  "task_goal": "Auto-open closed indices on source before migration, auto-close back to original state after migration",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Auto open/close implemented and tested."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-10T13:34:49.959595"
+}

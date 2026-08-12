@@ -1,0 +1,12 @@
+{
+  "id": "d9d4acd8",
+  "task_goal": "Fix search input losing focus after every keystroke in both tabs",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Search focus fix applied to both tabs."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T10:48:56.330441"
+}

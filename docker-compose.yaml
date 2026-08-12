@@ -1,0 +1,50 @@
+services:
+  es-source:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: estui-es-source
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_source_data:/usr/share/elasticsearch/data
+      - ./es-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    networks:
+      - es-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  es-target:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: estui-es-target
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9201:9200"
+    volumes:
+      - es_target_data:/usr/share/elasticsearch/data
+      - ./es-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    networks:
+      - es-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  es_source_data:
+  es_target_data:
+
+networks:
+  es-net:
+    driver: bridge

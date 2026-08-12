@@ -1,0 +1,14 @@
+log_level: debug
+log_file: estui.log
+
+sources:
+  - name: local-source
+    hosts:
+      - http://localhost:9200
+    remote_reindex_host: http://es-source:9200
+
+targets:
+  - name: local-target
+    hosts:
+      - http://localhost:9201
+    remote_reindex_host: http://es-target:9200

@@ -1,0 +1,12 @@
+{
+  "id": "81ea6f6e",
+  "task_goal": "Add regex filter to migration panel so user can narrow down indices before selecting them for migration",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Migration filter complete. Build verified \u2014 filter functions embedded in served HTML."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T10:40:28.274728"
+}

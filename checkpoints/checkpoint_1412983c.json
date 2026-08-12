@@ -1,0 +1,12 @@
+{
+  "id": "1412983c",
+  "task_goal": "Fix migration error: add 'verified_before_close' and any other missing private index settings to the stripReadOnly filter",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Fixed private index settings error. Verified with each log should show: ESTUI_LOG"
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T17:05:02.209610"
+}

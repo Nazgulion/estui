@@ -1,0 +1,12 @@
+{
+  "id": "a599cc90",
+  "task_goal": "Fix auto-open for closed indices with wait-to-ready, preview handles closed indices, show loading animations during open/close/wait states",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "Closed index handling complete. Auto-open with wait-for-ready, preview handles closed indices, loading animation."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-10T19:58:55.488595"
+}

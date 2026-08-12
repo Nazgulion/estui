@@ -1,0 +1,12 @@
+{
+  "id": "f23277bc",
+  "task_goal": "Remove TUI version entirely, keep only web UI. Strip internal/ui/, bubbletea/bubbles/lipgloss deps, simplify main.go to web-only.",
+  "completed": [],
+  "decisions": [],
+  "remaining": [
+    "TUI removed. Project is now web-only. Single binary starts HTTP server on configurable port."
+  ],
+  "resume_requirements": [],
+  "failed_attempts": [],
+  "timestamp": "2026-08-09T11:12:13.948236"
+}
