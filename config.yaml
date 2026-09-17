@@ -1,5 +1,6 @@
 log_level: debug
 log_file: estui.log
+port: 8082
 
 sources:
   - name: local-source

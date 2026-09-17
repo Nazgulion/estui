@@ -1,4 +1,65 @@
-# memory-lab template
+# estui
+
+Local web dashboard for copying Elasticsearch indices between two clusters.
+
+## Run
+
+Configure `sources`, `targets`, and optionally `port` in `config.yaml`, then run:
+
+```bash
+go run .
+# Override the configured port:
+go run . -port 8080
+# Or use another configuration file:
+go run . -port 8080 /path/to/config.yaml
+```
+
+The configured port in this checkout is 8082; the default without a port setting
+is 8080. Open `http://localhost:8082`. The server listens only on `127.0.0.1`,
+accepts localhost Host headers for its configured port, and rejects cross-origin
+requests. For remote administration, use an SSH tunnel with the same local port,
+for example `ssh -L 8082:127.0.0.1:8082 user@server`. Local processes are trusted;
+this dashboard is not an authenticated multi-user service.
+
+## Migration behavior
+
+- Both clusters must return distinct, valid cluster UUIDs before migration starts.
+  Resume verifies that the connected clusters match the saved source and target.
+- Connections cannot change during a migration.
+- Native reindex is attempted first unless proxy mode is selected. Scroll/bulk
+  fallback retains document IDs and custom routing, validates every response,
+  and releases the latest scroll cursor on completion or failure.
+- Fallback after native reindex is allowed only after a definite rejection or a
+  confirmed terminal task failure. If starting or polling a task has an unknown
+  outcome, the migration stops instead of launching another writer. A saved task
+  ID must be confirmed stopped before Continue can restart the index. When no ID
+  was returned, inspect Elasticsearch tasks before abandoning and starting again.
+- The overwrite choice is saved with the migration. Completed and skipped indices
+  are not retried. Older checkpoints without an overwrite choice do not authorize
+  deleting existing indices. If an unfinished index already exists and overwrite
+  was disabled, resume stops for that index rather than silently treating a
+  partial copy as skipped; inspect it and start a new migration with the desired
+  overwrite choice.
+- Every job outcome, including failures and skips, is saved atomically in
+  `migration_state.json`. Successful batches appear in history. Destination
+  indices are closed after successful migration, as in the existing workflow.
+
+For custom routing semantics, see Elastic's
+[routing documentation](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/mapping-routing-field).
+
+## Development checks
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+```
+
+Tests use mock transports and temporary localhost HTTP servers. They do not
+connect to configured clusters or modify the checkout's migration state.
+
+## Agent memory tools
+
 
 Agent runtime for opencode sessions. Implements the **Agents, Loops, Graphs** and **Context vs Memory** patterns from Anthropic's agent engineering guides.
 

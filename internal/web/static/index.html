@@ -102,7 +102,7 @@ var S={tab:'indices',source:[],target:[],selected:{},dir:'source->target',jobs:[
   srcHost:'http://localhost:9200',tgtHost:'http://localhost:9201',
   nodeATag:'',nodeBTag:'',statusMsg:'',proxyMode:false};
 function GET(u){return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.json()})}
-function POST(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){if(!r.ok)throw r.status;return r.json()})}
+function POST(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(async function(r){var data=await r.json();if(!r.ok)throw new Error(data.error||('HTTP '+r.status));return data})}
 function E(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 function F(n){return n?n.toLocaleString():'0'}
 function H(h){return '<span class="health-dot '+h+'">'+h+'</span>'}
@@ -211,14 +211,15 @@ function renderMigration(){
     if(a.query)h+=' \u00b7 Query: <code style="background:var(--surface-hi);color:var(--primary);padding:1px 6px;border-radius:3px;font-size:11px">'+E(a.query)+'</code>';
     h+='</div></div><div class="card-body" style="padding:8px 14px">';
     a.indices.forEach(function(idx){
-      var cls=idx.status==='completed'?'done':idx.status==='running'?'running':idx.status==='failed'?'fail':'pending';
+      var cls=(idx.status==='completed'||idx.status==='skipped')?'done':idx.status==='running'?'running':idx.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">';
       h+='<span style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+E(idx.name)+'</span>';
       h+='<div class="pg-grid" style="flex:1">';for(var i=0;i<10;i++)h+='<div class="pg-dot '+cls+'"></div>';h+='</div>';
-      h+='<span style="color:var(--muted-fg);min-width:70px;text-align:right">'+idx.status+(idx.total>0?' '+F(idx.transferred)+'/'+F(idx.total):'')+'</span></div>';
+      h+='<span style="color:var(--muted-fg);min-width:70px;text-align:right">'+idx.status+(idx.docs_total>0?' '+F(idx.transferred)+'/'+F(idx.docs_total):'')+'</span></div>';
+      if(idx.error)h+='<div style="color:var(--danger);font-size:11px;margin-bottom:6px">'+E(idx.error)+'</div>';
     });
-    var done=a.indices.filter(function(i){return i.status==='completed'}).length;
-    var left=a.indices.filter(function(i){return i.status!=='completed'}).length;
+    var done=a.indices.filter(function(i){return i.status==='completed'||i.status==='skipped'}).length;
+    var left=a.indices.filter(function(i){return i.status!=='completed'&&i.status!=='skipped'}).length;
     h+='<div style="display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
     h+='<span style="font-size:11px;color:var(--muted-fg)">'+done+' done \u00b7 '+left+' remaining</span><span style="flex:1"></span>';
     h+='<button class="btn btn-sm" onclick="checkCompat()">Check Compat</button>';
@@ -239,7 +240,7 @@ function renderMigration(){
 
   // Running migration jobs
   if(S.migrating||S.jobs.length>0){h+='<div class="card"><div class="card-header">Migration Jobs</div><div class="card-body" style="padding:4px 14px">';
-    S.jobs.forEach(function(j){var pct=j.total>0?Math.round(j.progress/j.total*100):0,cl=j.status==='completed'?'done':j.status==='running'?'running':j.status==='failed'?'fail':'pending';
+    S.jobs.forEach(function(j){var pct=j.total>0?Math.round(j.progress/j.total*100):0,cl=(j.status==='completed'||j.status==='skipped')?'done':j.status==='running'?'running':j.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px">';
       h+='<div class="pg-dot '+cl+'"></div>';
       h+='<span>'+E(j.source_index)+'</span>';

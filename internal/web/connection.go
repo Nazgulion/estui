@@ -11,9 +11,9 @@ import (
 )
 
 type connectionHandler struct {
-	s       *Server
-	srcCfg  *config.ESConnection
-	tgtCfg  *config.ESConnection
+	s      *Server
+	srcCfg *config.ESConnection
+	tgtCfg *config.ESConnection
 }
 
 func (s *Server) handleTestSource(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,9 @@ func (s *Server) handleTestSource(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, 405, map[string]string{"error": "POST required"})
 		return
 	}
-	var req struct{ Host string `json:"host"` }
+	var req struct {
+		Host string `json:"host"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
@@ -31,7 +33,11 @@ func (s *Server) handleTestSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := config.ESConnection{Hosts: []string{req.Host}}
+	cfg := s.SourceCfg
+	if len(cfg.Hosts) == 0 || cfg.Hosts[0] != req.Host {
+		// Credentials and remote host overrides belong to the configured cluster.
+		cfg = config.ESConnection{Hosts: []string{req.Host}}
+	}
 	client, err := elastic.NewClient(cfg, s.Log)
 	if err != nil {
 		httpJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
@@ -59,7 +65,9 @@ func (s *Server) handleTestDest(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, 405, map[string]string{"error": "POST required"})
 		return
 	}
-	var req struct{ Host string `json:"host"` }
+	var req struct {
+		Host string `json:"host"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
@@ -69,7 +77,11 @@ func (s *Server) handleTestDest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := config.ESConnection{Hosts: []string{req.Host}}
+	cfg := s.TargetCfg
+	if len(cfg.Hosts) == 0 || cfg.Hosts[0] != req.Host {
+		// Credentials and remote host overrides belong to the configured cluster.
+		cfg = config.ESConnection{Hosts: []string{req.Host}}
+	}
 	client, err := elastic.NewClient(cfg, s.Log)
 	if err != nil {
 		httpJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})

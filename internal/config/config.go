@@ -32,6 +32,7 @@ func (c ESConnection) ReindexURL() string {
 type Config struct {
 	LogLevel string         `yaml:"log_level"`
 	LogFile  string         `yaml:"log_file"`
+	Port     int            `yaml:"port"`
 	Sources  []ESConnection `yaml:"sources"`
 	Targets  []ESConnection `yaml:"targets"`
 }
@@ -40,6 +41,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		LogLevel: "info",
 		LogFile:  "estui.log",
+		Port:     8080,
 	}
 }
 
@@ -80,6 +82,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.LogFile == "" {
 		cfg.LogFile = "estui.log"
+	}
+	if cfg.Port == 0 {
+		cfg.Port = 8080
 	}
 
 	return cfg, nil

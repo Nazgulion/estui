@@ -5,13 +5,12 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - reindex.remote.whitelist=es-source:9200,es-target:9200
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
     volumes:
       - es_source_data:/usr/share/elasticsearch/data
-      - ./es-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/bash", "/entrypoint.sh"]
     networks:
       - es-net
     healthcheck:
@@ -26,13 +25,12 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - reindex.remote.whitelist=es-source:9200,es-target:9200
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9201:9200"
     volumes:
       - es_target_data:/usr/share/elasticsearch/data
-      - ./es-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/bash", "/entrypoint.sh"]
     networks:
       - es-net
     healthcheck:

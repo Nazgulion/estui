@@ -13,9 +13,8 @@ import (
 
 func main() {
 	cfgPath := "config.yaml"
-	port := 8080
 
-	flag.IntVar(&port, "port", 8080, "web server port")
+	flagPort := flag.Int("port", 0, "web server port (overrides port in config.yaml)")
 	flag.Parse()
 
 	if len(flag.Args()) > 0 {
@@ -26,6 +25,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
+	}
+
+	port := cfg.Port
+	if *flagPort != 0 {
+		port = *flagPort
 	}
 
 	log := logging.New(cfg.LogFile, logging.ParseLevel(cfg.LogLevel))

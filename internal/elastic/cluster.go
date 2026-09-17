@@ -19,7 +19,7 @@ type ClusterInfo struct {
 func (c *Client) GetClusterInfo(ctx context.Context, host string) (*ClusterInfo, error) {
 	info := &ClusterInfo{Host: host}
 
-	resp, err := c.es.Info()
+	resp, err := c.es.Info(c.es.Info.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("cluster info: %w", err)
 	}
@@ -28,6 +28,10 @@ func (c *Client) GetClusterInfo(ctx context.Context, host string) (*ClusterInfo,
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read info: %w", err)
+	}
+
+	if resp.IsError() {
+		return nil, fmt.Errorf("cluster info failed (status %d): %s", resp.StatusCode, body)
 	}
 
 	var infoResp struct {

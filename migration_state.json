@@ -1,6 +1,174 @@
 {
   "history": [
     {
+      "description": "alerts 203 (abandoned)",
+      "direction": "source-\u003etarget",
+      "source": {
+        "host": "http://es-01.prod.ast.local:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "M2XHtcqNTou8boMmLzqKBg"
+      },
+      "dest": {
+        "host": "http://localhost:9201",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "6Ms3x-HPSxSqaYGnAGFN9A"
+      },
+      "indices": [
+        {
+          "name": "alerts_1_20357",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20378",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20381",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20383",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20390",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20398",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20399",
+          "docs_total": 0,
+          "status": "abandoned",
+          "transferred": 0
+        }
+      ],
+      "started_at": "2026-08-17T15:03:35+02:00",
+      "completed_at": "2026-09-14T16:24:02+02:00"
+    },
+    {
+      "description": "alerts test",
+      "direction": "source-\u003etarget",
+      "source": {
+        "host": "http://es-01.prod.ast.local:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "M2XHtcqNTou8boMmLzqKBg"
+      },
+      "dest": {
+        "host": "http://localhost:9201",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "6Ms3x-HPSxSqaYGnAGFN9A"
+      },
+      "indices": [
+        {
+          "name": "alerts_1_20502",
+          "docs_total": 0,
+          "status": "queued",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20503",
+          "docs_total": 0,
+          "status": "queued",
+          "transferred": 0
+        },
+        {
+          "name": "alerts_1_20504",
+          "docs_total": 0,
+          "status": "queued",
+          "transferred": 0
+        }
+      ],
+      "started_at": "2026-08-17T15:00:03+02:00",
+      "completed_at": "2026-08-17T15:00:18+02:00"
+    },
+    {
+      "description": "mikrotik 20861 prebacivanje",
+      "direction": "source-\u003etarget",
+      "source": {
+        "host": "http://es-01.prod.ast.local:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "M2XHtcqNTou8boMmLzqKBg"
+      },
+      "dest": {
+        "host": "http://localhost:9200",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "ezt_t4K2TqiBgkDlGcT0XA"
+      },
+      "indices": [
+        {
+          "name": "mikrotic_firewall_events__1_20681",
+          "docs_total": 10139,
+          "status": "queued",
+          "transferred": 0
+        }
+      ],
+      "started_at": "2026-08-17T14:55:29+02:00",
+      "completed_at": "2026-08-17T14:55:33+02:00"
+    },
+    {
+      "description": "",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9200",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "ezt_t4K2TqiBgkDlGcT0XA"
+      },
+      "dest": {
+        "host": "http://localhost:9201",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "6Ms3x-HPSxSqaYGnAGFN9A"
+      },
+      "indices": [
+        {
+          "name": "app-events-2024-01",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 10
+        },
+        {
+          "name": "app-events-2024-02",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 10
+        },
+        {
+          "name": "app-events-2024-03",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 10
+        },
+        {
+          "name": "app-events-2024-04",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 10
+        },
+        {
+          "name": "app-events-2024-05",
+          "docs_total": 0,
+          "status": "completed",
+          "transferred": 10
+        }
+      ],
+      "started_at": "2026-08-13T17:19:03+02:00",
+      "completed_at": "2026-08-13T17:19:14+02:00"
+    },
+    {
       "description": "Sync prod and stage",
       "direction": "source-\u003etarget",
       "source": {

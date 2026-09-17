@@ -152,6 +152,10 @@ func (c *Client) OpenIndex(ctx context.Context, name string) error {
 		return fmt.Errorf("open index %s: %w", name, err)
 	}
 	defer resp.Body.Close()
+	if resp.IsError() {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("open index %s failed (status %d): %s", name, resp.StatusCode, body)
+	}
 	return nil
 }
 
@@ -161,6 +165,10 @@ func (c *Client) CloseIndex(ctx context.Context, name string) error {
 		return fmt.Errorf("close index %s: %w", name, err)
 	}
 	defer resp.Body.Close()
+	if resp.IsError() {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("close index %s failed (status %d): %s", name, resp.StatusCode, body)
+	}
 	return nil
 }
 
@@ -170,6 +178,10 @@ func (c *Client) DeleteIndex(ctx context.Context, name string) error {
 		return fmt.Errorf("delete index %s: %w", name, err)
 	}
 	defer resp.Body.Close()
+	if resp.IsError() {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete index %s failed (status %d): %s", name, resp.StatusCode, body)
+	}
 	return nil
 }
 

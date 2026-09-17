@@ -4,16 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 )
+
+// ErrReindexRejected means the request was rejected before an async task started.
+var ErrReindexRejected = errors.New("reindex request rejected")
 
 type MigrationTask struct {
 	ID          string
 	SourceIndex string
 	TargetIndex string
 	Status      string
+	Error       string
 	Created     int64
 	Updated     int64
 	Total       int64
@@ -22,16 +27,16 @@ type MigrationTask struct {
 }
 
 var readOnlySettings = map[string]bool{
-	"creation_date":          true,
-	"provided_name":          true,
-	"uuid":                   true,
-	"version":                true,
-	"routing_num_shards":     true,
-	"verified_before_close":  true,
-	"store":                  true,
-	"history":                true,
-	"history.uuid":           true,
-	"creation_date_string":   true,
+	"creation_date":         true,
+	"provided_name":         true,
+	"uuid":                  true,
+	"version":               true,
+	"routing_num_shards":    true,
+	"verified_before_close": true,
+	"store":                 true,
+	"history":               true,
+	"history.uuid":          true,
+	"creation_date_string":  true,
 }
 
 func stripReadOnly(settings map[string]any) map[string]any {
@@ -122,7 +127,10 @@ func (c *Client) ReindexAsync(ctx context.Context, sourceHost, sourceIndex, targ
 	}
 
 	if resp.IsError() {
-		return nil, fmt.Errorf("reindex failed (status %d): %s", resp.StatusCode, string(respBody))
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 408 {
+			return nil, fmt.Errorf("%w (status %d): %s", ErrReindexRejected, resp.StatusCode, respBody)
+		}
+		return nil, fmt.Errorf("reindex start outcome unknown (status %d): %s", resp.StatusCode, respBody)
 	}
 
 	var result struct {
@@ -164,21 +172,28 @@ func (c *Client) GetTaskStatus(ctx context.Context, taskID string) (*MigrationTa
 	}
 
 	var taskResp struct {
-		Completed bool `json:"completed"`
+		Completed *bool `json:"completed"`
 		Task      struct {
 			Status map[string]any `json:"status"`
 		} `json:"task"`
-		Error struct {
-			Reason string `json:"reason"`
-		} `json:"error"`
-		Response struct {
-			Failures []any `json:"failures"`
+		Error    json.RawMessage `json:"error"`
+		Response *struct {
+			Created  *int64 `json:"created"`
+			Updated  *int64 `json:"updated"`
+			Total    *int64 `json:"total"`
+			Deleted  *int64 `json:"deleted"`
+			Batches  *int64 `json:"batches"`
+			Failures []any  `json:"failures"`
+			TimedOut bool   `json:"timed_out"`
 		} `json:"response"`
 	}
 	if err := json.Unmarshal(body, &taskResp); err != nil {
 		return nil, fmt.Errorf("parse task response: %w", err)
 	}
 
+	if taskResp.Completed == nil {
+		return nil, fmt.Errorf("task response missing completed flag")
+	}
 	task := &MigrationTask{ID: taskID}
 
 	if v, ok := taskResp.Task.Status["created"]; ok {
@@ -197,9 +212,15 @@ func (c *Client) GetTaskStatus(ctx context.Context, taskID string) (*MigrationTa
 		task.Batches = toInt64(v)
 	}
 
-	if taskResp.Completed {
-		if len(taskResp.Response.Failures) > 0 {
+	if *taskResp.Completed {
+		if len(taskResp.Error) > 0 && string(taskResp.Error) != "null" {
 			task.Status = "failed"
+			task.Error = string(taskResp.Error)
+		} else if taskResp.Response == nil {
+			return nil, fmt.Errorf("completed task response missing result")
+		} else if len(taskResp.Response.Failures) > 0 || taskResp.Response.TimedOut {
+			task.Status = "failed"
+			task.Error = fmt.Sprintf("reindex failed: timeout=%t, failures=%v", taskResp.Response.TimedOut, taskResp.Response.Failures)
 		} else {
 			task.Status = "completed"
 		}
@@ -207,6 +228,24 @@ func (c *Client) GetTaskStatus(ctx context.Context, taskID string) (*MigrationTa
 		task.Status = "running"
 	}
 
+	if *taskResp.Completed && taskResp.Response != nil {
+		result := taskResp.Response
+		if result.Created != nil {
+			task.Created = *result.Created
+		}
+		if result.Updated != nil {
+			task.Updated = *result.Updated
+		}
+		if result.Total != nil {
+			task.Total = *result.Total
+		}
+		if result.Deleted != nil {
+			task.Deleted = *result.Deleted
+		}
+		if result.Batches != nil {
+			task.Batches = *result.Batches
+		}
+	}
 	return task, nil
 }
 

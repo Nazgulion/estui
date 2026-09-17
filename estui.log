@@ -4204,3 +4204,149 @@
 2026/08/11 13:03:48 [INFO] [web] starting server on http://localhost:8080
 2026/08/11 13:03:56 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
 2026/08/11 13:03:56 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/13 17:02:06 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/13 17:02:06 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/13 17:02:06 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/08/13 17:02:06 [INFO] [app] connected to source: local-source
+2026/08/13 17:02:06 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/08/13 17:02:06 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/08/13 17:02:06 [INFO] [app] connected to target: local-target
+2026/08/13 17:02:06 [INFO] [web] starting server on http://localhost:8080
+2026/08/13 17:02:18 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/13 17:02:18 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/13 17:02:31 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/13 17:02:31 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/13 17:02:32 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/13 17:02:32 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/13 17:18:06 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/13 17:18:06 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/13 17:18:08 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/13 17:18:08 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/13 17:19:04 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:4827 started for app-events-2024-01
+2026/08/13 17:19:05 [INFO] [web-migrate] native reindex got 0 docs for app-events-2024-01, trying scroll+bulk
+2026/08/13 17:19:05 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:4866 started for app-events-2024-02
+2026/08/13 17:19:06 [INFO] [web-migrate] native reindex got 0 docs for app-events-2024-02, trying scroll+bulk
+2026/08/13 17:19:07 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:4909 started for app-events-2024-03
+2026/08/13 17:19:08 [INFO] [web-migrate] native reindex got 0 docs for app-events-2024-03, trying scroll+bulk
+2026/08/13 17:19:08 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:4944 started for app-events-2024-04
+2026/08/13 17:19:09 [INFO] [web-migrate] native reindex got 0 docs for app-events-2024-04, trying scroll+bulk
+2026/08/13 17:19:10 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:4989 started for app-events-2024-05
+2026/08/13 17:19:11 [INFO] [web-migrate] native reindex got 0 docs for app-events-2024-05, trying scroll+bulk
+2026/08/17 14:25:21 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/17 14:25:21 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/17 14:25:22 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 14:25:22 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/17 14:43:21 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/17 14:43:21 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/17 14:43:24 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 14:43:24 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/17 14:46:58 [DEBUG] [elastic] creating client for  on [es-01.prod.ast.local:9200]
+2026/08/17 14:47:10 [DEBUG] [elastic] creating client for  on [htpp://es-01.prod.ast.local:9200]
+2026/08/17 14:47:16 [DEBUG] [elastic] creating client for  on [http://es-01.prod.ast.local:9200]
+2026/08/17 14:47:17 [INFO] [elastic] connected to  at [http://es-01.prod.ast.local:9200]
+2026/08/17 14:48:22 [DEBUG] [elastic] creating client for  on [http://es-01.prod.ast.local:9200]
+2026/08/17 14:48:22 [INFO] [elastic] connected to  at [http://es-01.prod.ast.local:9200]
+2026/08/17 14:48:29 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/17 14:48:29 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/17 14:55:30 [INFO] [web-migrate] proxy mode for mikrotic_firewall_events__1_20681, using scroll+bulk
+2026/08/17 14:56:30 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/17 14:56:30 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/17 14:58:07 [DEBUG] [elastic] creating client for  on [http://es-01.prod.ast.local:9200]
+2026/08/17 14:58:08 [INFO] [elastic] connected to  at [http://es-01.prod.ast.local:9200]
+2026/08/17 14:59:26 [DEBUG] [elastic] creating client for  on [http://es-01.prod.ast.local:9200]
+2026/08/17 14:59:26 [INFO] [elastic] connected to  at [http://es-01.prod.ast.local:9200]
+2026/08/17 14:59:26 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 14:59:26 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/17 15:00:07 [INFO] [web-migrate] proxy mode for alerts_1_20502, using scroll+bulk
+2026/08/17 15:00:10 [INFO] [web-migrate] proxy mode for alerts_1_20503, using scroll+bulk
+2026/08/17 15:00:15 [INFO] [web-migrate] proxy mode for alerts_1_20504, using scroll+bulk
+2026/08/17 15:01:37 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 15:01:37 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/17 15:02:37 [DEBUG] [elastic] creating client for  on [es-01.prod.ast.local:9200]
+2026/08/17 15:02:45 [DEBUG] [elastic] creating client for  on [http://es-01.prod.ast.local:9200]
+2026/08/17 15:02:45 [INFO] [elastic] connected to  at [http://es-01.prod.ast.local:9200]
+2026/08/17 15:02:54 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 15:02:54 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/17 15:03:39 [INFO] [web-migrate] proxy mode for alerts_1_20357, using scroll+bulk
+2026/08/17 15:03:43 [INFO] [web-migrate] proxy mode for alerts_1_20378, using scroll+bulk
+2026/08/17 15:03:47 [INFO] [web-migrate] proxy mode for alerts_1_20381, using scroll+bulk
+2026/08/17 15:03:50 [INFO] [web-migrate] proxy mode for alerts_1_20383, using scroll+bulk
+2026/08/17 15:03:54 [INFO] [web-migrate] proxy mode for alerts_1_20390, using scroll+bulk
+2026/08/17 15:03:57 [INFO] [web-migrate] proxy mode for alerts_1_20398, using scroll+bulk
+2026/08/17 15:04:09 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/17 15:04:09 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/17 15:04:09 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/08/17 15:04:09 [INFO] [app] connected to source: local-source
+2026/08/17 15:04:09 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/08/17 15:04:09 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/08/17 15:04:09 [INFO] [app] connected to target: local-target
+2026/08/17 15:04:09 [INFO] [web] starting server on http://localhost:8080
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20357: get index alerts_1_20357 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20357]","resource.type":"index_or_alias","resource.id":"alerts_1_20357","index_uuid":"_na_","index":"alerts_1_20357"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20357]","resource.type":"index_or_alias","resource.id":"alerts_1_20357","index_uuid":"_na_","index":"alerts_1_20357"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20378: get index alerts_1_20378 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20378]","resource.type":"index_or_alias","resource.id":"alerts_1_20378","index_uuid":"_na_","index":"alerts_1_20378"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20378]","resource.type":"index_or_alias","resource.id":"alerts_1_20378","index_uuid":"_na_","index":"alerts_1_20378"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20381: get index alerts_1_20381 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20381]","resource.type":"index_or_alias","resource.id":"alerts_1_20381","index_uuid":"_na_","index":"alerts_1_20381"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20381]","resource.type":"index_or_alias","resource.id":"alerts_1_20381","index_uuid":"_na_","index":"alerts_1_20381"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20383: get index alerts_1_20383 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20383]","resource.type":"index_or_alias","resource.id":"alerts_1_20383","index_uuid":"_na_","index":"alerts_1_20383"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20383]","resource.type":"index_or_alias","resource.id":"alerts_1_20383","index_uuid":"_na_","index":"alerts_1_20383"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20390: get index alerts_1_20390 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20390]","resource.type":"index_or_alias","resource.id":"alerts_1_20390","index_uuid":"_na_","index":"alerts_1_20390"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20390]","resource.type":"index_or_alias","resource.id":"alerts_1_20390","index_uuid":"_na_","index":"alerts_1_20390"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20398: get index alerts_1_20398 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20398]","resource.type":"index_or_alias","resource.id":"alerts_1_20398","index_uuid":"_na_","index":"alerts_1_20398"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20398]","resource.type":"index_or_alias","resource.id":"alerts_1_20398","index_uuid":"_na_","index":"alerts_1_20398"},"status":404}
+2026/08/17 15:05:05 [ERROR] [web-migrate] detail failed for alerts_1_20399: get index alerts_1_20399 failed (status 404): {"error":{"root_cause":[{"type":"index_not_found_exception","reason":"no such index [alerts_1_20399]","resource.type":"index_or_alias","resource.id":"alerts_1_20399","index_uuid":"_na_","index":"alerts_1_20399"}],"type":"index_not_found_exception","reason":"no such index [alerts_1_20399]","resource.type":"index_or_alias","resource.id":"alerts_1_20399","index_uuid":"_na_","index":"alerts_1_20399"},"status":404}
+2026/08/17 15:06:29 [DEBUG] [elastic] creating client for  on [http://local:9200]
+2026/08/17 15:06:34 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/08/17 15:06:34 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/08/17 15:06:48 [DEBUG] [elastic] creating client for  on [http://localhost:9201]
+2026/08/17 15:06:48 [INFO] [elastic] connected to  at [http://localhost:9201]
+2026/08/25 23:01:28 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/25 23:01:28 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:01:28 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:01:38 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/25 23:01:38 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:01:38 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:01:54 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/25 23:01:54 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:01:54 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:02:05 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/25 23:02:05 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:02:05 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:02:43 [INFO] [app] starting estui web on port 8080 (log: estui.log, level: debug)
+2026/08/25 23:02:43 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:02:43 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:09:43 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/08/25 23:09:43 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:09:43 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:09:43 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:09:43 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:09:43 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:11:02 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:11:02 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:11:02 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:11:12 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:11:12 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:11:12 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:12:16 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:12:16 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:12:16 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:12:32 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:12:32 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:12:32 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/08/25 23:21:02 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/08/25 23:21:02 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:21:02 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/08/25 23:21:02 [INFO] [app] connected to source: local-source
+2026/08/25 23:21:02 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/08/25 23:21:02 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/08/25 23:21:02 [INFO] [app] connected to target: local-target
+2026/08/25 23:21:02 [INFO] [web] starting server on http://localhost:8082
+2026/08/25 23:21:10 [INFO] [app] starting estui web on port 8090 (log: estui.log, level: debug)
+2026/08/25 23:21:10 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/08/25 23:21:10 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/08/25 23:21:10 [INFO] [app] connected to source: local-source
+2026/08/25 23:21:10 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/08/25 23:21:10 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/08/25 23:21:10 [INFO] [app] connected to target: local-target
+2026/08/25 23:21:10 [INFO] [web] starting server on http://localhost:8090
+2026/09/14 16:23:19 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/14 16:23:19 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/14 16:23:19 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/14 16:23:19 [INFO] [app] connected to source: local-source
+2026/09/14 16:23:19 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/14 16:23:19 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/14 16:23:19 [INFO] [app] connected to target: local-target
+2026/09/14 16:23:19 [INFO] [web] starting server on http://localhost:8082
