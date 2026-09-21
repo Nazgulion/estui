@@ -1,6 +1,40 @@
 {
   "history": [
     {
+      "overwrite": true,
+      "description": "111",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9200",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "ezt_t4K2TqiBgkDlGcT0XA"
+      },
+      "dest": {
+        "host": "http://localhost:9201",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "6Ms3x-HPSxSqaYGnAGFN9A"
+      },
+      "indices": [
+        {
+          "name": "alerts_1_20357",
+          "docs_total": 6,
+          "status": "completed",
+          "transferred": 6,
+          "logs": [
+            "[22:12:19] starting migration",
+            "[22:12:19] read settings and mappings",
+            "[22:12:20] created target index",
+            "[22:12:20] reindex task 6sayOR0gSl-CpMzc-uIzEw:2793 started",
+            "[22:12:21] native reindex: 6/6 docs",
+            "[22:12:21] completed: 6/6 docs",
+            "[22:12:21] closed target index"
+          ]
+        }
+      ],
+      "started_at": "2026-09-17T22:12:19+02:00",
+      "completed_at": "2026-09-17T22:12:21+02:00"
+    },
+    {
       "description": "alerts 203 (abandoned)",
       "direction": "source-\u003etarget",
       "source": {

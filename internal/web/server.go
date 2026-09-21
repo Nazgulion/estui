@@ -1,12 +1,10 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -367,85 +365,6 @@ func (s *Server) handleIndexClose(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpJSON(w, 200, map[string]any{"results": results})
-}
-
-func (s *Server) handlePreviewQuery(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		httpJSON(w, 405, map[string]string{"error": "POST required"})
-		return
-	}
-	var req struct {
-		Host  string `json:"host"`
-		Index string `json:"index"`
-		Query string `json:"query"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
-		return
-	}
-
-	client := s.Source
-	if req.Host == "target" {
-		client = s.Target
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
-	defer cancel()
-
-	// Auto-open if closed
-	indices, _ := client.ListIndices(ctx)
-	wasClosed := false
-	for _, idx := range indices {
-		if idx.Name == req.Index && idx.Status == "close" {
-			wasClosed = true
-			break
-		}
-	}
-	if wasClosed {
-		if err := client.OpenIndex(ctx, req.Index); err != nil {
-			httpJSON(w, 500, map[string]string{"error": "failed to open closed index: " + err.Error()})
-			return
-		}
-		for attempt := 0; attempt < 30; attempt++ {
-			time.Sleep(2 * time.Second)
-			indices, _ := client.ListIndices(ctx)
-			ready := false
-			for _, idx := range indices {
-				if idx.Name == req.Index && idx.Status == "open" {
-					ready = true
-					break
-				}
-			}
-			if ready {
-				break
-			}
-		}
-		defer func() { _ = client.CloseIndex(ctx, req.Index) }()
-	}
-
-	q := map[string]any{"match_all": map[string]any{}}
-	if req.Query != "" && req.Query != "*" {
-		q = map[string]any{"query_string": map[string]any{"query": req.Query}}
-	}
-	body, _ := json.Marshal(map[string]any{"query": q})
-
-	resp, err := client.ES().Count(
-		client.ES().Count.WithContext(ctx),
-		client.ES().Count.WithIndex(req.Index),
-		client.ES().Count.WithBody(bytes.NewReader(body)),
-	)
-	if err != nil {
-		httpJSON(w, 500, map[string]string{"error": err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	var c struct {
-		Count int64 `json:"count"`
-	}
-	json.Unmarshal(respBody, &c)
-	httpJSON(w, 200, map[string]any{"index": req.Index, "count": c.Count, "query": req.Query})
 }
 
 func toIndexJSON(indices []elastic.IndexInfo) []indexJSON {

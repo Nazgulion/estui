@@ -98,7 +98,7 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 <div id="modal-container"></div>
 <script>
 var S={tab:'indices',source:[],target:[],selected:{},dir:'source->target',jobs:[],migrating:false,
-  migrationFilter:'',targetFilter:'',disk:null,state:null,srcOK:false,tgtOK:false,srcInfo:null,tgtInfo:null,compat:null,query:'',desc:'',
+  indicesFilter:'',migrationFilter:'',targetFilter:'',disk:null,state:null,srcOK:false,tgtOK:false,srcInfo:null,tgtInfo:null,compat:null,query:'',desc:'',
   srcHost:'http://localhost:9200',tgtHost:'http://localhost:9201',
   nodeATag:'',nodeBTag:'',statusMsg:'',proxyMode:false};
 function GET(u){return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.json()})}
@@ -150,7 +150,7 @@ function renderIndices(){
     if(ai==='src-host'){var si=document.getElementById('src-host');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}}
     return;
   }
-  var q=document.getElementById('search')?document.getElementById('search').value:'';
+  var q=S.indicesFilter;
   var filtered=Q(S.source,q);
   var h='<div class="conn-row"><span class="dot ok" id="src-dot"></span>';
   h+='<input id="src-host" class="search-box" placeholder="http://host:9200" style="flex:none;width:220px" autocomplete="off" value="'+E(S.srcHost||'')+'">';
@@ -161,7 +161,7 @@ function renderIndices(){
   h+='</div>';
   if(S.statusMsg)h+='<div style="padding:6px 14px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">'+S.statusMsg+'</div>';
   h+='<div class="card"><div class="card-header"><span style="font-weight:700;color:var(--primary)">Indices</span>';
-  h+='<input id="search" class="search-box" style="width:180px;flex:none" placeholder="/regex filter..." value="'+E(q)+'" oninput="renderIndices()">';
+  h+='<input id="search" class="search-box" style="width:180px;flex:none" placeholder="/regex filter..." value="'+E(q)+'" oninput="S.indicesFilter=this.value;renderIndices()">';
   h+='<span class="badge">'+filtered.length+'/'+S.source.length+'</span></div>';
   if(S.source.length===0)h+='<div class="card-body empty">No indices</div>';
   else {h+='<div class="card-body"><table><thead><tr>';
@@ -386,8 +386,8 @@ document.getElementById('main').addEventListener('click',function(e){
   var el=e.target.closest('[data-click]');if(!el)return;
   var cmd=el.dataset.click,name=el.dataset.name;
   if(cmd==='idx'){if(S.selected[name]){delete S.selected[name]}else{S.selected[name]=true};renderIndices()}
-  else if(cmd==='idx-all'){Q(S.source,document.getElementById('search')?document.getElementById('search').value:'').forEach(function(i){S.selected[i.name]=true});renderIndices()}
-  else if(cmd==='idx-none'){Q(S.source,document.getElementById('search')?document.getElementById('search').value:'').forEach(function(i){delete S.selected[i.name]});renderIndices()}
+  else if(cmd==='idx-all'){Q(S.source,S.indicesFilter).forEach(function(i){S.selected[i.name]=true});renderIndices()}
+  else if(cmd==='idx-none'){Q(S.source,S.indicesFilter).forEach(function(i){delete S.selected[i.name]});renderIndices()}
   else if(cmd==='idx-delete'){showConfirm('delete',Object.keys(S.selected),function(){runBulk('delete')})}
   else if(cmd==='idx-open'){showConfirm('open',Object.keys(S.selected),function(){runBulk('open')})}
   else if(cmd==='idx-close'){showConfirm('close',Object.keys(S.selected),function(){runBulk('close')})}
@@ -477,7 +477,7 @@ async function runBulk(action){
   var names=Object.keys(S.selected),count=names.length;
   var lbl={delete:'Deleting',open:'Opening',close:'Closing'};
   S.statusMsg='<span style="animation:blink .6s infinite alternate">\u27F3</span> '+lbl[action]+' '+count+' indices...';renderIndices();
-  try{await POST('/api/indices/'+action,{indices:names});S.selected={};var si=document.getElementById('search');if(si)si.value='';S.statusMsg='\u2705 '+lbl[action].replace('ing','ed')+' '+count+' indices';}catch(e){S.statusMsg='\u274C Error: '+e}
+  try{await POST('/api/indices/'+action,{indices:names});S.selected={};S.statusMsg='\u2705 '+lbl[action].replace('ing','ed')+' '+count+' indices';}catch(e){S.statusMsg='\u274C Error: '+e}
   await loadAll();renderIndices();
   setTimeout(function(){S.statusMsg='';renderIndices()},3000);
 }

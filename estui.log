@@ -4350,3 +4350,58 @@
 2026/09/14 16:23:19 [INFO] [elastic] connected to local-target at [http://localhost:9201]
 2026/09/14 16:23:19 [INFO] [app] connected to target: local-target
 2026/09/14 16:23:19 [INFO] [web] starting server on http://localhost:8082
+2026/09/17 22:02:42 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/17 22:02:42 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/17 22:02:42 [ERROR] [app] source connection failed: connect to ES: dial tcp 127.0.0.1:9200: connect: connection refused
+2026/09/17 22:03:54 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/17 22:03:54 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/17 22:03:54 [ERROR] [app] source connection failed: connect to ES: EOF
+2026/09/17 22:04:25 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/17 22:04:25 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/17 22:04:25 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/17 22:04:25 [INFO] [app] connected to source: local-source
+2026/09/17 22:04:25 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/17 22:04:25 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/17 22:04:25 [INFO] [app] connected to target: local-target
+2026/09/17 22:04:25 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/09/17 22:04:53 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/17 22:04:53 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/17 22:04:56 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/17 22:04:56 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/17 22:12:20 [INFO] [web-migrate] task 6sayOR0gSl-CpMzc-uIzEw:2793 started for alerts_1_20357
+2026/09/17 22:16:52 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/17 22:16:52 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 09:43:47 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 09:43:47 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 09:43:48 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 09:43:48 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 09:46:52 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 09:46:52 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 09:47:01 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 09:47:01 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 09:47:02 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 09:47:02 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 09:47:16 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 09:47:16 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 09:47:19 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 09:47:19 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 10:20:14 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/21 10:20:14 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 10:20:14 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 10:20:14 [INFO] [app] connected to source: local-source
+2026/09/21 10:20:14 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 10:20:14 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 10:20:14 [INFO] [app] connected to target: local-target
+2026/09/21 10:20:14 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/09/21 10:20:24 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 10:20:24 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 10:20:25 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 10:20:25 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 10:25:12 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/21 10:25:12 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/21 10:25:12 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/21 10:25:12 [INFO] [app] connected to source: local-source
+2026/09/21 10:25:12 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/21 10:25:12 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/21 10:25:12 [INFO] [app] connected to target: local-target
+2026/09/21 10:25:12 [INFO] [web] starting server on http://127.0.0.1:8082
