@@ -1,0 +1,60 @@
+/* Scoped to mapping dialogs; the surrounding dashboard keeps its own density. */
+.remap-overlay { padding:16px; }
+.modal.remap-modal { width:100%;max-width:760px;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px #0008;font-size:12px;line-height:1.5;color-scheme:dark; }
+.remap-header { display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0; }
+.remap-modal h3 { margin:0;color:var(--text);font-size:16px;font-weight:600;letter-spacing:-.2px; }
+.remap-step { color:var(--muted-fg);font-size:11px;white-space:nowrap; }
+.remap-body { min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px 20px;scrollbar-gutter:stable; }
+.remap-intro { color:var(--muted-fg);margin-bottom:12px; }
+.remap-route { display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:16px; }
+.remap-route-label { display:block;color:var(--muted-fg);font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px; }
+.remap-route-host { display:block;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere; }
+.remap-route-arrow { color:var(--muted-fg); }
+.remap-index { min-width:0;border:1px solid var(--border);border-radius:6px;margin-bottom:12px;overflow:hidden; }
+.remap-index:last-child { margin-bottom:0; }
+.remap-index-heading { display:flex;align-items:baseline;gap:10px;padding:9px 12px;background:var(--bg);border-bottom:1px solid var(--border); }
+.remap-index-heading span { flex-shrink:0;font-size:10px;font-weight:600;color:var(--muted-fg);letter-spacing:.4px;text-transform:uppercase; }
+.remap-index-heading h4 { min-width:0;font:600 12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere; }
+.remap-fields { display:grid;gap:12px;padding:12px; }
+.remap-field { display:flex;flex-direction:column;min-width:0;gap:5px; }
+.remap-label { font-size:11px;font-weight:600;color:var(--muted-fg); }
+.remap-modal input:not([type="checkbox"]):not([type="file"]),.remap-modal select,.remap-modal textarea { width:100%;min-width:0;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);padding:7px 9px;outline:none;font-size:12px;line-height:1.4; }
+.remap-modal input:not([type="checkbox"]):not([type="file"]) { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+.remap-modal select { min-height:33px;font-family:inherit; }
+.remap-modal textarea { min-height:152px;max-height:40vh;resize:vertical;tab-size:2;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;padding:10px 12px; }
+.remap-modal textarea::placeholder { color:var(--muted); }
+.remap-modal input:focus-visible,.remap-modal select:focus-visible,.remap-modal textarea:focus-visible,.remap-modal summary:focus-visible,.remap-modal button:focus-visible { outline:2px solid var(--primary);outline-offset:2px; }
+.remap-mapping-toolbar { display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:28px; }
+.remap-file { max-width:260px;min-width:0;font-family:inherit;font-size:11px;line-height:1.4;color:var(--muted-fg); }
+.remap-file::file-selector-button { margin-right:8px;background:var(--surface-hi);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:4px 8px;font-family:inherit;font-size:11px;cursor:pointer; }
+.remap-options { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start; }
+.remap-help { color:var(--muted-fg);font-size:11px; }
+.remap-help summary,.remap-mapping-preview summary { cursor:pointer;width:fit-content; }
+.remap-help p { margin-top:6px;max-width:66ch; }
+.remap-filter { margin-bottom:12px;overflow-wrap:anywhere; }
+.remap-filter code { color:var(--text); }
+.remap-steps { list-style:none;counter-reset:remap-step;display:grid;gap:10px;padding:12px; }
+.remap-steps li { position:relative;counter-increment:remap-step;padding-left:29px;overflow-wrap:anywhere;color:var(--muted-fg); }
+.remap-steps li::before { content:counter(remap-step);position:absolute;left:0;top:0;width:19px;height:19px;display:grid;place-items:center;border:1px solid var(--border);border-radius:50%;font-size:10px;color:var(--text); }
+.remap-steps strong { color:var(--text);font-weight:500; }
+.remap-steps .remap-destructive strong { color:var(--danger); }
+.remap-mapping-preview { padding:9px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted-fg); }
+.remap-mapping-preview pre { margin-top:8px;padding:10px;max-height:180px;overflow:auto;background:var(--bg);border-radius:var(--radius-sm);white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--text); }
+.remap-note { padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted-fg);font-size:11px;margin-top:12px; }
+.remap-ack { display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 12px;border:1px solid #f43f5e66;border-radius:var(--radius-sm);background:#f43f5e08;font-size:12px;color:var(--text);cursor:pointer; }
+.remap-ack input { flex-shrink:0;width:14px;height:14px;margin-top:2px;accent-color:var(--danger); }
+.remap-footer { display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0; }
+.remap-footer-actions { display:flex;gap:8px;margin-left:auto; }
+.remap-footer .btn { min-height:32px;padding:6px 12px;font-family:inherit;font-weight:600;font-size:12px;line-height:1.4; }
+.remap-modal .remap-secondary { background:transparent;border:1px solid var(--border);color:var(--muted-fg); }
+.remap-modal .remap-secondary:hover { background:var(--surface-hi);color:var(--text);opacity:1; }
+@media (max-width:600px) {
+  .remap-overlay { padding:8px; }
+  .modal.remap-modal { max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px); }
+  .remap-header,.remap-body { padding:12px; }
+  .remap-footer { padding:10px 12px; }
+  .remap-options { grid-template-columns:minmax(0,1fr); }
+  .remap-mapping-toolbar { flex-wrap:wrap;gap:6px; }
+  .remap-file { max-width:100%; }
+  .remap-index-heading { align-items:flex-start; }
+}

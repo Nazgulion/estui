@@ -44,14 +44,14 @@ func (f *previewBackend) serve(w http.ResponseWriter, r *http.Request) {
 	f.requests = append(f.requests, path)
 	switch path {
 	case "/":
-		_, _ = io.WriteString(w, `{}`)
+		_, _ = io.WriteString(w, `{"cluster_uuid":"preview-cluster","version":{"number":"8.17.0"}}`)
 	case "/_cat/indices":
 		if f.listError {
 			w.WriteHeader(403)
 			_, _ = io.WriteString(w, `{"error":"status forbidden"}`)
 			return
 		}
-		if f.cancelAt == "waiting" && len(f.requests) > 3 {
+		if f.cancelAt == "waiting" && strings.Contains(strings.Join(f.requests, ","), "/test/_open") {
 			f.cancel()
 		}
 		status := "open"
@@ -59,6 +59,8 @@ func (f *previewBackend) serve(w http.ResponseWriter, r *http.Request) {
 			status = "close"
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]string{{"index": "test", "status": status}})
+	case "/test":
+		_, _ = io.WriteString(w, `{"test":{"settings":{"index":{"uuid":"preview-index"}},"mappings":{}}}`)
 	case "/test/_open":
 		if f.openError {
 			w.WriteHeader(403)
@@ -117,7 +119,8 @@ func newPreviewServer(t *testing.T, f *previewBackend) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{Source: client, Target: client, Log: log}
+	restoreState(MigrationState{})
+	return &Server{Source: client, Target: client, SourceCfg: cfg, TargetCfg: cfg, StatePath: filepath.Join(t.TempDir(), "state.json"), Log: log}
 }
 
 func requestPreview(s *Server, ctx context.Context) *httptest.ResponseRecorder {
@@ -148,7 +151,7 @@ func TestPreviewRestoresOnlyOriginallyClosedIndex(t *testing.T) {
 			if closed {
 				want = "/,/_cat/indices,/test/_open,/_cat/indices,/test/_count,/test/_close"
 			}
-			if got := strings.Join(f.requests, ","); got != want {
+			if got := previewOperations(f.requests); got != want {
 				t.Fatalf("sequence=%s want=%s", got, want)
 			}
 		})
@@ -264,4 +267,14 @@ func TestPreviewStopsWhenStateCannotBeVerifiedOrOpened(t *testing.T) {
 			}
 		})
 	}
+}
+
+func previewOperations(requests []string) string {
+	filtered := []string{"/"}
+	for _, r := range requests {
+		if r == "/_cat/indices" || r == "/test/_open" || r == "/test/_close" || r == "/test/_count" {
+			filtered = append(filtered, r)
+		}
+	}
+	return strings.Join(filtered, ",")
 }

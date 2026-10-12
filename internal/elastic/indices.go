@@ -1,10 +1,12 @@
 package elastic
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 )
 
@@ -106,7 +108,9 @@ func (c *Client) GetIndexDetail(ctx context.Context, name string) (*IndexDetail,
 		Mappings map[string]any `json:"mappings"`
 		Aliases  map[string]any `json:"aliases"`
 	}
-	if err := json.Unmarshal(body, &raw); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
 		return nil, fmt.Errorf("parse index detail: %w", err)
 	}
 
@@ -156,6 +160,16 @@ func (c *Client) OpenIndex(ctx context.Context, name string) error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("open index %s failed (status %d): %s", name, resp.StatusCode, body)
 	}
+	var result struct {
+		Acknowledged       bool  `json:"acknowledged"`
+		ShardsAcknowledged *bool `json:"shards_acknowledged"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("invalid acknowledgement: %w", err)
+	}
+	if !result.Acknowledged || (result.ShardsAcknowledged != nil && !*result.ShardsAcknowledged) {
+		return fmt.Errorf("index operation was not fully acknowledged")
+	}
 	return nil
 }
 
@@ -169,6 +183,31 @@ func (c *Client) CloseIndex(ctx context.Context, name string) error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("close index %s failed (status %d): %s", name, resp.StatusCode, body)
 	}
+	var result struct {
+		Acknowledged       bool                       `json:"acknowledged"`
+		ShardsAcknowledged *bool                      `json:"shards_acknowledged"`
+		Indices            map[string]json.RawMessage `json:"indices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("invalid acknowledgement: %w", err)
+	}
+	if !result.Acknowledged || (result.ShardsAcknowledged != nil && !*result.ShardsAcknowledged) {
+		// Closing an already-closed index is an acknowledged no-op with no
+		// shard results. Confirm its state instead of reporting a false failure.
+		if result.Acknowledged && result.Indices != nil && len(result.Indices) == 0 {
+			var indices []struct {
+				Name   string `json:"index"`
+				Status string `json:"status"`
+			}
+			if err := c.jsonRequest(ctx, "GET", "/_cat/indices/"+url.PathEscape(name)+"?format=json&h=index,status&expand_wildcards=all", nil, &indices); err != nil {
+				return err
+			}
+			if len(indices) == 1 && indices[0].Name == name && indices[0].Status == "close" {
+				return nil
+			}
+		}
+		return fmt.Errorf("index operation was not fully acknowledged")
+	}
 	return nil
 }
 
@@ -181,6 +220,16 @@ func (c *Client) DeleteIndex(ctx context.Context, name string) error {
 	if resp.IsError() {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("delete index %s failed (status %d): %s", name, resp.StatusCode, body)
+	}
+	var result struct {
+		Acknowledged       bool  `json:"acknowledged"`
+		ShardsAcknowledged *bool `json:"shards_acknowledged"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("invalid acknowledgement: %w", err)
+	}
+	if !result.Acknowledged || (result.ShardsAcknowledged != nil && !*result.ShardsAcknowledged) {
+		return fmt.Errorf("index operation was not fully acknowledged")
 	}
 	return nil
 }

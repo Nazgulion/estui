@@ -37,7 +37,7 @@ func (s *Server) handlePreviewQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	count, err := previewCount(ctx, client, req.Index, req.Query)
+	count, err := previewCount(ctx, client, req.Index, req.Query, func() (func() error, error) { return s.acquirePreview(req.Host, req.Index) })
 	if err != nil {
 		s.Log.Error("preview", "query preview for %s failed: %v", req.Index, err)
 		status := http.StatusBadGateway
@@ -50,18 +50,27 @@ func (s *Server) handlePreviewQuery(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, http.StatusOK, map[string]any{"index": req.Index, "count": count, "query": req.Query})
 }
 
-func previewCount(ctx context.Context, client *elastic.Client, index, query string) (count int64, err error) {
+func previewCount(ctx context.Context, client *elastic.Client, index, query string, acquire ...func() (func() error, error)) (count int64, err error) {
 	status, err := previewIndexStatus(ctx, client, index)
 	if err != nil {
 		return 0, err
 	}
 	if status == "close" {
+		restore := func() error {
+			cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			return client.CloseIndex(cleanup, index)
+		}
+		if len(acquire) > 0 {
+			restore, err = acquire[0]()
+			if err != nil {
+				return 0, err
+			}
+		}
 		// Register restoration before opening: the server may open the index even if
 		// the caller times out before receiving the acknowledgement.
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			if closeErr := client.CloseIndex(cleanup, index); closeErr != nil {
+			if closeErr := restore(); closeErr != nil {
 				err = errors.Join(err, fmt.Errorf("failed to restore closed index %s: %w", index, closeErr))
 			}
 		}()

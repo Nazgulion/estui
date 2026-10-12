@@ -8,7 +8,7 @@ services:
       - reindex.remote.whitelist=es-source:9200,es-target:9200
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     volumes:
       - es_source_data:/usr/share/elasticsearch/data
     networks:
@@ -28,9 +28,49 @@ services:
       - reindex.remote.whitelist=es-source:9200,es-target:9200
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "9201:9200"
+      - "127.0.0.1:9201:9200"
     volumes:
       - es_target_data:/usr/share/elasticsearch/data
+    networks:
+      - es-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  es-test8:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: estui-es-test8
+    environment:
+      - discovery.type=single-node
+      - cluster.name=estui-test8
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9202:9200"
+    volumes:
+      - es_test8_data:/usr/share/elasticsearch/data
+    networks:
+      - es-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  es-test7:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
+    container_name: estui-es-test7
+    environment:
+      - discovery.type=single-node
+      - cluster.name=estui-test7
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9203:9200"
+    volumes:
+      - es_test7_data:/usr/share/elasticsearch/data
     networks:
       - es-net
     healthcheck:
@@ -42,6 +82,8 @@ services:
 volumes:
   es_source_data:
   es_target_data:
+  es_test8_data:
+  es_test7_data:
 
 networks:
   es-net:

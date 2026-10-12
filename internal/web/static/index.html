@@ -69,7 +69,7 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 .pg-dot.fail { background:var(--danger); }
 .panel-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
 .panel-grid .panel { display:flex;flex-direction:column;min-height:0;overflow:hidden; }
-.panel-grid .panel .card-body { overflow-y:auto;flex:1;max-height:none; }
+.panel-grid .panel .card-body { overflow-y:auto;flex:1;max-height:clamp(160px,45vh,520px); }
 .modal-overlay { position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100; }
 .modal { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:500px;width:90%; }
 .modal h3 { color:var(--warn);margin-bottom:12px; }
@@ -85,7 +85,21 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 .prompt .icon { font-size:48px;margin-bottom:16px; }
 .prompt .title { font-size:16px;color:var(--muted-fg);margin-bottom:8px; }
 .prompt .hint { font-size:12px;color:var(--muted);margin-bottom:16px; }
+
+.index-pager { display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--muted-fg);font-size:11px;flex-shrink:0; }
+.index-range { margin-right:auto;font-variant-numeric:tabular-nums;white-space:nowrap; }
+.index-page-size,.index-page-number,.index-page-nav { display:flex;align-items:center;gap:5px;white-space:nowrap; }
+.index-pager .search-box { padding:3px 5px;font-size:11px;min-height:26px; }
+.index-page-size select { color-scheme:dark; }
+.index-page-number input { width:48px;text-align:center;appearance:textfield; }
+.index-page-number input::-webkit-inner-spin-button,.index-page-number input::-webkit-outer-spin-button { appearance:none;margin:0; }
+.page-btn { display:grid;place-items:center;min-width:26px;height:26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:16px;cursor:pointer; }
+.page-btn:hover:not(:disabled) { background:var(--surface-hi);border-color:var(--primary); }
+.page-btn:disabled { opacity:.3;cursor:default; }
+.page-btn:focus-visible,.index-pager .search-box:focus-visible { outline:2px solid var(--primary);outline-offset:2px; }
+@media (max-width:700px) { .panel-grid { grid-template-columns:1fr; } }
 </style>
+<link rel="stylesheet" href="/remap.css">
 </head>
 <body>
 <header><span class="logo">✦ estui</span><span class="subtitle">Elasticsearch TUI</span></header>
@@ -96,10 +110,12 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 <main id="main"></main>
 <footer id="footer"><span id="footer-count"></span><span>estui v3.0</span></footer>
 <div id="modal-container"></div>
+<script src="/remap.js"></script>
+<script src="/pagination.js"></script>
 <script>
 var S={tab:'indices',source:[],target:[],selected:{},dir:'source->target',jobs:[],migrating:false,
   indicesFilter:'',migrationFilter:'',targetFilter:'',disk:null,state:null,srcOK:false,tgtOK:false,srcInfo:null,tgtInfo:null,compat:null,query:'',desc:'',
-  srcHost:'http://localhost:9200',tgtHost:'http://localhost:9201',
+  srcHost:'',tgtHost:'',
   nodeATag:'',nodeBTag:'',statusMsg:'',proxyMode:false};
 function GET(u){return fetch(u).then(function(r){if(!r.ok)throw r.status;return r.json()})}
 function POST(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(async function(r){var data=await r.json();if(!r.ok)throw new Error(data.error||('HTTP '+r.status));return data})}
@@ -109,6 +125,7 @@ function H(h){return '<span class="health-dot '+h+'">'+h+'</span>'}
 function L(s){return s==='open'?'<span class="status-open">open</span>':'<span class="status-close">close</span>'}
 function Q(list,q){if(!q)return list;try{var re=new RegExp(q,'i');return list.filter(function(i){return re.test(i.name)})}catch(e){return list}}
 async function loadAll(){
+  try{var c=await GET('/api/clusters');S.srcHost=c.source.host;S.tgtHost=c.target.host;S.srcInfo=c.source;S.tgtInfo=c.target;S.srcOK=true;S.tgtOK=true}catch(e){S.srcOK=false;S.tgtOK=false;S.srcInfo=null;S.tgtInfo=null;S.source=[];S.target=[];return}
   try{var s=await GET('/api/indices/source');S.source=Array.isArray(s)?s:[];if(S.source.length>0)S.srcOK=true}catch(e){S.source=[];S.srcOK=false;S.srcInfo=null}
   try{var t=await GET('/api/indices/target');S.target=Array.isArray(t)?t:[]}catch(e){S.target=[];S.tgtOK=false;S.tgtInfo=null}
   try{S.disk=await GET('/api/disk')}catch(e){S.disk=null}
@@ -116,21 +133,21 @@ async function loadAll(){
 async function loadJobs(){try{var d=await GET('/api/migrate/status');S.jobs=d.jobs||[];S.migrating=d.active||false}catch(e){}}
 async function testSource(){
   var host=document.getElementById('src-host').value.trim();if(!host)return alert('Enter host');
-  S.srcHost=host;
+
   var btn=document.getElementById('test-src-btn'),dot=document.getElementById('src-dot');
   btn.textContent='...';btn.disabled=true;dot.className='dot testing';
   try{var r=await POST('/api/test-source',{host:host});
-    if(r.ok){S.srcOK=true;S.srcInfo=r.info;dot.className='dot ok'}
+    if(r.ok){S.selected={};S.srcOK=true;S.srcInfo=r.info;dot.className='dot ok'}
     else {S.srcOK=false;dot.className='dot err';alert('Source: '+r.error)}}
   catch(e){S.srcOK=false;dot.className='dot err';alert('Source failed: '+e)}
   btn.textContent='Test';btn.disabled=false;await loadAll();updateView()}
 async function testDest(){
   var host=document.getElementById('tgt-host').value.trim();if(!host)return alert('Enter host');
-  S.tgtHost=host;
+
   var btn=document.getElementById('test-tgt-btn'),dot=document.getElementById('tgt-dot');
   btn.textContent='...';btn.disabled=true;dot.className='dot testing';
   try{var r=await POST('/api/test-dest',{host:host});
-    if(r.ok){S.tgtOK=true;S.tgtInfo=r.info;dot.className='dot ok'}
+    if(r.ok){S.selected={};S.tgtOK=true;S.tgtInfo=r.info;dot.className='dot ok'}
     else {S.tgtOK=false;dot.className='dot err';alert('Dest: '+r.error)}}
   catch(e){S.tgtOK=false;dot.className='dot err';alert('Dest failed: '+e)}
   btn.textContent='Test';btn.disabled=false;await loadAll();updateView()}
@@ -151,7 +168,8 @@ function renderIndices(){
     return;
   }
   var q=S.indicesFilter;
-  var filtered=Q(S.source,q);
+  var page=indexPage('indices',S.source,q,S.srcInfo&&S.srcInfo.cluster_uuid);
+  var filtered=page.matches;
   var h='<div class="conn-row"><span class="dot ok" id="src-dot"></span>';
   h+='<input id="src-host" class="search-box" placeholder="http://host:9200" style="flex:none;width:220px" autocomplete="off" value="'+E(S.srcHost||'')+'">';
   h+='<button class="btn btn-sm" id="test-src-btn" onclick="testSource()">Reconnect</button>';
@@ -161,19 +179,20 @@ function renderIndices(){
   h+='</div>';
   if(S.statusMsg)h+='<div style="padding:6px 14px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">'+S.statusMsg+'</div>';
   h+='<div class="card"><div class="card-header"><span style="font-weight:700;color:var(--primary)">Indices</span>';
-  h+='<input id="search" class="search-box" style="width:180px;flex:none" placeholder="/regex filter..." value="'+E(q)+'" oninput="S.indicesFilter=this.value;renderIndices()">';
+  h+='<input id="search" class="search-box" style="width:180px;flex:none" placeholder="/regex filter..." value="'+E(q)+'" oninput="setIndexFilter(\'indices\',this.value)">';
   h+='<span class="badge">'+filtered.length+'/'+S.source.length+'</span></div>';
-  if(S.source.length===0)h+='<div class="card-body empty">No indices</div>';
-  else {h+='<div class="card-body"><table><thead><tr>';
+  h+=indexPager('indices',page);
+  if(filtered.length===0)h+='<div class="card-body empty">'+(S.source.length?'No matching indices':'No indices')+'</div>';
+  else {h+='<div class="card-body" id="indices-rows"><table><thead><tr>';
     ['Sel','Index','Health','Status','Docs','Size','Pri','Rep'].forEach(function(hd){h+='<th>'+hd+'</th>';});
     h+='</tr></thead><tbody>';
-    filtered.forEach(function(idx){var is=S.selected[idx.name];
-    h+='<tr class="'+(is?'sel':'')+'" data-click="idx" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+'</td><td>'+H(idx.health)+'</td><td>'+L(idx.status)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+idx.primary+'</td><td>'+idx.replica+'</td></tr>';});
+    page.rows.forEach(function(idx){var is=S.selected[idx.name];
+    h+='<tr class="'+(is?'sel':'')+'" data-click="idx" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+H(idx.health)+'</td><td>'+L(idx.status)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+idx.primary+'</td><td>'+idx.replica+'</td></tr>';});
     h+='</tbody></table></div>';}
   h+='</div>';
   var sc=Object.keys(S.selected).length;
   h+='<div style="display:flex;gap:6px;padding:4px 0">';
-  h+='<button class="btn btn-sm" data-click="idx-all">all</button> <button class="btn btn-sm btn-danger" data-click="idx-none">none</button>';
+  h+='<button class="btn btn-sm" data-click="idx-all" title="Select every matching index across all pages">All matches</button> <button class="btn btn-sm btn-danger" data-click="idx-none" title="Clear matching selections across all pages">Clear matches</button>';
   h+='<span style="color:var(--muted);font-size:12px;padding:4px 0">'+sc+' selected</span>';
   h+='<button class="btn btn-sm btn-danger" data-click="idx-delete" '+((sc===0)?'disabled':'')+'>Delete</button>';
   h+='<button class="btn btn-sm" data-click="idx-open" '+((sc===0)?'disabled':'')+'>Open</button>';
@@ -188,7 +207,7 @@ function renderIndices(){
   cbs=document.querySelectorAll('#main .card-body');
   var n=Math.min(cbsBot.length,cbs.length);
   for(i=0;i<n;i++){var b=Math.max(0,cbs[i].scrollHeight-cbsBot[i]-cbs[i].clientHeight);cbs[i].scrollTop=b;}
-  if(ai==='search'){var si=document.getElementById('search');if(si&&si.value){si.focus();si.setSelectionRange(si.value.length,si.value.length)}}
+  if(ai==='search'){var si=document.getElementById('search');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}}
 }
 // ==== Migration Tab ====
 function renderMigration(){
@@ -203,19 +222,20 @@ function renderMigration(){
     var nodeALabel=S.nodeATag?('<span style="color:var(--primary)">'+E(S.nodeATag)+'</span> \u2014 '):'';
     var nodeBLabel=S.nodeBTag?('<span style="color:var(--primary)">'+E(S.nodeBTag)+'</span> \u2014 '):'';
     var dirArrow=a.direction==='target->source'?' \u2190 ':' \u2192 ';
-    h+='Node A: '+nodeALabel+'<span onclick="copyHost(\'src\',\''+E(a.source.host)+'\')" style="cursor:pointer;text-decoration:underline;color:var(--muted-fg)" title="Copy">'+E(a.source.host)+'</span>';
+    h+='Node A: '+nodeALabel+'<span data-copy-host="'+E(a.source.host)+'" data-copy-side="src" style="cursor:pointer;text-decoration:underline;color:var(--muted-fg)" title="Copy">'+E(a.source.host)+'</span>';
     h+=dirArrow;
     h+='Node B: '+nodeBLabel;
-    h+='<span onclick="copyHost(\'tgt\',\''+E(a.dest.host)+'\')" style="cursor:pointer;text-decoration:underline;color:var(--muted-fg)" title="Copy">'+E(a.dest.host)+'</span>';
+    h+='<span data-copy-host="'+E(a.dest.host)+'" data-copy-side="tgt" style="cursor:pointer;text-decoration:underline;color:var(--muted-fg)" title="Copy">'+E(a.dest.host)+'</span>';
     h+=' \u00b7 Started: '+new Date(a.started_at).toLocaleString();
     if(a.query)h+=' \u00b7 Query: <code style="background:var(--surface-hi);color:var(--primary);padding:1px 6px;border-radius:3px;font-size:11px">'+E(a.query)+'</code>';
     h+='</div></div><div class="card-body" style="padding:8px 14px">';
     a.indices.forEach(function(idx){
       var cls=(idx.status==='completed'||idx.status==='skipped')?'done':idx.status==='running'?'running':idx.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">';
-      h+='<span style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+E(idx.name)+'</span>';
+      h+='<span style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</span>';
       h+='<div class="pg-grid" style="flex:1">';for(var i=0;i<10;i++)h+='<div class="pg-dot '+cls+'"></div>';h+='</div>';
       h+='<span style="color:var(--muted-fg);min-width:70px;text-align:right">'+idx.status+(idx.docs_total>0?' '+F(idx.transferred)+'/'+F(idx.docs_total):'')+'</span></div>';
+      h+=remapSummary(idx.remap);
       if(idx.error)h+='<div style="color:var(--danger);font-size:11px;margin-bottom:6px">'+E(idx.error)+'</div>';
     });
     var done=a.indices.filter(function(i){return i.status==='completed'||i.status==='skipped'}).length;
@@ -243,14 +263,14 @@ function renderMigration(){
     S.jobs.forEach(function(j){var pct=j.total>0?Math.round(j.progress/j.total*100):0,cl=(j.status==='completed'||j.status==='skipped')?'done':j.status==='running'?'running':j.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px">';
       h+='<div class="pg-dot '+cl+'"></div>';
-      h+='<span>'+E(j.source_index)+'</span>';
+      h+='<span>'+E(j.source_index)+(j.target_index!==j.source_index?' → '+E(j.target_index):'')+'</span>';
       h+='<span style="color:var(--muted-fg)">'+j.status+(j.total>0?' '+pct+'%':'')+'</span>';
       if((j.logs&&j.logs.length)||j.error){
         h+='<details style="margin:0"><summary style="cursor:pointer;font-size:10px;color:var(--muted);outline:none">logs</summary>';
         if(j.logs&&j.logs.length)h+='<div class="job-logs">'+j.logs.map(function(l){return E(l)}).join('\n')+'</div>';
         if(j.error)h+='<div style="color:var(--danger);font-size:10px;margin-top:2px">'+E(j.error)+'</div>';
         h+='</details>';}
-      h+='</div>';});
+      h+='</div>';h+=remapSummary(j.remap);});
     h+='</div></div>';}
 
 
@@ -285,7 +305,8 @@ function renderMigration(){
 
     // Panels + action (only when both tested)
     if(S.srcOK&&S.tgtOK){
-      var ls=Q(S.source,S.migrationFilter||''),rs=Q(S.target,S.targetFilter||'');
+      var lp=indexPage('source',S.source,S.migrationFilter||'',S.srcInfo&&S.srcInfo.cluster_uuid),rp=indexPage('target',S.target,S.targetFilter||'',S.tgtInfo&&S.tgtInfo.cluster_uuid);
+      var ls=lp.matches,rs=rp.matches;
       var sc=Object.keys(S.selected).length;
 
       // Query filter row
@@ -300,34 +321,37 @@ function renderMigration(){
 
       h+='<div class="panel-grid">';
       h+='<div class="panel"><div class="card"><div class="card-header">'+E(tagA())+'</div>';
-      h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border)">';
-      h+='<input id="mig-search-src" class="search-box" placeholder="/regex..." value="'+E(S.migrationFilter||'')+'" oninput="S.migrationFilter=this.value;renderMigration()" style="flex:1">';
+      h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
+      h+='<input id="mig-search-src" class="search-box" placeholder="/regex..." value="'+E(S.migrationFilter||'')+'" oninput="setIndexFilter(\'source\',this.value)" style="flex:1">';
       h+='<span style="font-size:12px;color:var(--muted-fg);white-space:nowrap;min-width:44px">'+ls.length+'/'+S.source.length+'</span>';
-      h+='<button class="btn btn-sm" data-click="mig-all-src">all</button><button class="btn btn-sm btn-danger" data-click="mig-none-src">none</button></div>';
-      if(ls.length===0)h+='<div class="card-body empty">No indices</div>';
-      else{h+='<div class="card-body"><table><thead><tr>';
+      h+='<button class="btn btn-sm" data-click="mig-all-src" title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-src" title="Clear matching selections across all pages">Clear matches</button></div>';
+      h+=indexPager('source',lp);
+      if(ls.length===0)h+='<div class="card-body empty">'+(S.source.length?'No matching indices':'No indices')+'</div>';
+      else{h+='<div class="card-body" id="source-rows"><table><thead><tr>';
       h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Status</th></tr></thead><tbody>';
-      ls.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
+      lp.rows.forEach(function(idx){var is=S.selected[idx.name];
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='<div class="panel"><div class="card"><div class="card-header">'+E(tagB())+'</div>';
-      h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border)">';
-      h+='<input id="mig-search-tgt" class="search-box" placeholder="/regex..." value="'+E(S.targetFilter||'')+'" oninput="S.targetFilter=this.value;renderMigration()" style="flex:1">';
+      h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
+      h+='<input id="mig-search-tgt" class="search-box" placeholder="/regex..." value="'+E(S.targetFilter||'')+'" oninput="setIndexFilter(\'target\',this.value)" style="flex:1">';
       h+='<span style="font-size:12px;color:var(--muted-fg);white-space:nowrap;min-width:44px">'+rs.length+'/'+S.target.length+'</span>';
-      h+='<button class="btn btn-sm" data-click="mig-all-tgt">all</button><button class="btn btn-sm btn-danger" data-click="mig-none-tgt">none</button></div>';
-      if(rs.length===0)h+='<div class="card-body empty">No indices</div>';
-      else{h+='<div class="card-body"><table><thead><tr>';
+      h+='<button class="btn btn-sm" data-click="mig-all-tgt" title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-tgt" title="Clear matching selections across all pages">Clear matches</button></div>';
+      h+=indexPager('target',rp);
+      if(rs.length===0)h+='<div class="card-body empty">'+(S.target.length?'No matching indices':'No indices')+'</div>';
+      else{h+='<div class="card-body" id="target-rows"><table><thead><tr>';
       h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Status</th></tr></thead><tbody>';
-      rs.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
+      rp.rows.forEach(function(idx){var is=S.selected[idx.name];
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='</div>';
       h+='<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:8px 0">';
       h+='<span style="color:var(--muted);font-size:12px">'+sc+' selected</span>';
-      h+='<label style="font-size:11px;color:var(--muted-fg);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" onchange="S.proxyMode=this.checked"'+((S.proxyMode)?' checked':'')+'> Proxy through estui</label>';
+      h+='<span style="font-size:11px;color:var(--muted-fg)">Verified copy through estui</span>';
       h+='<input id="mig-desc" class="search-box" style="width:250px;flex:none" placeholder="Description (optional)" oninput="S.desc=this.value" value="'+E(S.desc||'')+'">';
+      h+='<button class="btn" data-click="mig-remap" '+((sc===0)?'disabled':'')+'>Reindex with mapping</button>';
       h+='<button class="btn" data-click="mig-start" '+((sc===0)?'disabled':'')+'>Start'+(sc>0?' ('+sc+')':'')+'</button>';
       h+='</div>';
     } else {
@@ -354,7 +378,8 @@ function renderMigration(){
       h+='<div class="hc-detail">'+E(hi.source.host)+' \u2192 '+E(hi.dest.host)+' \u00b7 Completed: '+new Date(hi.completed_at).toLocaleString()+dur+' \u00b7 '+hi.indices.length+' indices</div>';
       h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--muted);outline:none">Show indices</summary><div style="font-size:11px;color:var(--muted-fg);max-height:120px;overflow-y:auto;padding:4px 0">';
       hi.indices.forEach(function(idx){
-        h+='<div>\u2022 '+E(idx.name)+(idx.docs_total>0?' ('+F(idx.docs_total)+' docs)':'')+(idx.status!=='completed'?' — <span style="color:var(--danger)">'+E(idx.status)+'</span>':'')+'</div>';
+        h+='<div>\u2022 '+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+(idx.docs_total>0?' ('+F(idx.docs_total)+' docs)':'')+(idx.status!=='completed'?' — <span style="color:var(--danger)">'+E(idx.status)+'</span>':'')+'</div>';
+        h+=remapSummary(idx.remap);
       });
       h+='</div></details></div>';
     });
@@ -383,9 +408,10 @@ function renderMigration(){
 
 // Event delegation
 document.getElementById('main').addEventListener('click',function(e){
-  var el=e.target.closest('[data-click]');if(!el)return;
+  var copy=e.target.closest('[data-copy-host]');if(copy){copyHost(copy.dataset.copySide,copy.dataset.copyHost);return}var el=e.target.closest('[data-click]');if(!el)return;
   var cmd=el.dataset.click,name=el.dataset.name;
-  if(cmd==='idx'){if(S.selected[name]){delete S.selected[name]}else{S.selected[name]=true};renderIndices()}
+  if(cmd==='page'){if(!el.disabled)setIndexPage(el.dataset.list,el.dataset.page)}
+  else if(cmd==='idx'){if(S.selected[name]){delete S.selected[name]}else{S.selected[name]=true};renderIndices()}
   else if(cmd==='idx-all'){Q(S.source,S.indicesFilter).forEach(function(i){S.selected[i.name]=true});renderIndices()}
   else if(cmd==='idx-none'){Q(S.source,S.indicesFilter).forEach(function(i){delete S.selected[i.name]});renderIndices()}
   else if(cmd==='idx-delete'){showConfirm('delete',Object.keys(S.selected),function(){runBulk('delete')})}
@@ -397,6 +423,7 @@ document.getElementById('main').addEventListener('click',function(e){
   else if(cmd==='mig-all-tgt'){Q(S.target,S.targetFilter||'').forEach(function(i){S.selected[i.name]=true});renderMigration()}
   else if(cmd==='mig-none-tgt'){Q(S.target,S.targetFilter||'').forEach(function(i){delete S.selected[i.name]});renderMigration()}
   else if(cmd==='mig-start'){startMigrate()}
+  else if(cmd==='mig-remap'){startRemap()}
 });
 
 async function startMigrate(){var indices=Object.keys(S.selected);if(!indices.length)return;confirmMigration(indices,document.getElementById('mig-desc')?document.getElementById('mig-desc').value:'')}
@@ -411,16 +438,17 @@ async function previewQuery(){
     document.getElementById('preview-result').textContent=r.count+' docs match';
   }catch(e){document.getElementById('preview-result').textContent='Error: '+e;}
 }
-async function doMigrate(indices,desc){var el=document.getElementById('overwrite-toggle'),ov=el?el.checked:true;
-  var q=document.getElementById('mig-query')?document.getElementById('mig-query').value:'';
-  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,overwrite:ov,query:q,direction:S.dir,force_scroll:S.proxyMode})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected={}}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
+async function doMigrate(indices,desc,choice,intent){
+  intent=intent||{direction:S.dir,query:S.query,source_uuid:S.srcInfo&&S.srcInfo.cluster_uuid,target_uuid:S.tgtInfo&&S.tgtInfo.cluster_uuid,overwrite_uuids:{}};
+  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,collision_action:choice,overwrite_uuids:choice==='overwrite'?intent.overwrite_uuids:{},query:intent.query,direction:intent.direction,source_uuid:intent.source_uuid,target_uuid:intent.target_uuid,force_scroll:true})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected={}}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
 async function doContinue(){try{await POST('/api/migrate/continue',{});S.selected={}}catch(e){alert('Error: '+e)};renderMigration()}
 async function doAbandon(){if(!window.confirm('Abandon?'))return;try{await POST('/api/migrate/abandon',{});S.state=await GET('/api/migrate/state')}catch(e){alert('Error: '+e)};renderMigration()}
 async function checkCompat(){try{S.compat=await GET('/api/check-compat')}catch(e){S.compat=null};renderMigration()}
 function swapRoles(){var sh=document.getElementById('src-host'),th=document.getElementById('tgt-host'),tmp=S.srcHost;S.srcHost=S.tgtHost;S.tgtHost=tmp;sh.value=S.srcHost;th.value=S.tgtHost;S.srcOK=false;S.tgtOK=false;Promise.all([testSource(),testDest()]).then(function(){doContinue()})}
-function copyHost(w,h){navigator.clipboard.writeText(h).catch(function(){});var inp=document.getElementById(w==='src'?'src-host':'tgt-host');if(inp){inp.value=h;if(w==='src')S.srcHost=h;else S.tgtHost=h}}
+function copyHost(w,h){navigator.clipboard.writeText(h).catch(function(){});var inp=document.getElementById(w==='src'?'src-host':'tgt-host');if(inp){inp.value=h}}
 
-function confirmMigration(names,desc){var destIndices=S.dir==='source->target'?S.target:S.source;var existing=names.filter(function(n){return destIndices.some(function(i){return i.name===n})});
+function confirmMigration(names,desc){var intent={direction:S.dir,query:S.query,source_uuid:S.srcInfo&&S.srcInfo.cluster_uuid,target_uuid:S.tgtInfo&&S.tgtInfo.cluster_uuid,overwrite_uuids:{}};var destIndices=S.dir==='source->target'?S.target:S.source;var existing=names.filter(function(n){return destIndices.some(function(i){return i.name===n})});
+  var local=!!intent.source_uuid&&intent.source_uuid===intent.target_uuid;existing.forEach(function(n){var idx=destIndices.find(function(i){return i.name===n});intent.overwrite_uuids[n]=idx.uuid});
   var newOnly=names.filter(function(n){return !existing.includes(n)});
   var nodeA=(S.nodeATag?S.nodeATag+' — ':'')+(S.srcInfo?S.srcInfo.cluster_name:'Node A');
   var nodeB=(S.nodeBTag?S.nodeBTag+' — ':'')+(S.tgtInfo?S.tgtInfo.cluster_name:'Node B');
@@ -433,7 +461,7 @@ function confirmMigration(names,desc){var destIndices=S.dir==='source->target'?S
 
   var h='<div class="modal-overlay" id="modal-bg"><div class="modal" style="max-width:560px">';
   h+='<h3 style="color:var(--primary)">\uD83D\uDE80 Start Migration</h3>';
-  h+='<div class="msg" style="line-height:1.6">';
+  h+='<div class="msg" style="line-height:1.6">Source indices must be write-blocked. Copies are independently verified, kept write-blocked, and closed. Choose the destination behavior below. Aliases are not automatically copied.<br>';
   h+='<strong>'+names.length+'</strong> indices will be migrated<br>';
   h+='<span style="color:var(--muted-fg)">Node A:</span> <strong style="color:var(--text)">'+E(nodeA)+'</strong> <span style="color:var(--muted)">('+E(hostA)+')</span><br>';
   h+='<span style="color:var(--muted-fg)">Node B:</span> <strong style="color:var(--text)">'+E(nodeB)+'</strong> <span style="color:var(--muted)">('+E(hostB)+')</span><br>';
@@ -447,13 +475,19 @@ function confirmMigration(names,desc){var destIndices=S.dir==='source->target'?S
 
   if(desc)h+='<div class="msg" style="font-style:italic;color:var(--muted-fg)">\uD83D\uDCCB '+E(desc)+'</div>';
 
-  if(existing.length>0){
-    h+='<div class="msg" style="color:var(--warn)">\u26A0\uFE0F <strong>'+existing.length+'</strong> already exist on '+E(destName)+destTag+' ('+E(destHost)+'):</div>';
-    h+='<div class="list">'+existing.map(function(n){return '<div>\u26A0 '+E(n)+' (will be replaced)</div>'}).join('')+'</div>';
-    h+='<div style="margin-top:8px;font-size:13px"><label style="cursor:pointer;display:flex;align-items:center;gap:8px"><input type="checkbox" id="overwrite-toggle" checked> Overwrite existing (uncheck to skip)</label></div>';
+  if(local){
+    h+='<div class="msg">Both connections point to the same cluster. Each copy uses a new prefixed index; originals are preserved.</div>';
+    h+='<div class="list">'+names.map(function(n){return '<div>'+E(n)+' → reindex_'+E(n)+'_&lt;unique suffix&gt;</div>'}).join('')+'</div>';
+  }else if(existing.length>0){
+    h+='<div class="msg" style="color:var(--warn)"><strong>'+existing.length+'</strong> indices already exist on '+E(destName)+destTag+' ('+E(destHost)+'). Choose what to do:</div>';
+    h+='<div class="list">'+existing.map(function(n){return '<div>'+E(n)+'</div>'}).join('')+'</div>';
+    h+='<label style="display:block;margin:10px 0"><input type="radio" name="collision-action" value="rename" checked> Reindex into a new name: original_reindex_&lt;unique suffix&gt; (preserves existing data)</label>';
+    h+='<label style="display:block;margin:10px 0"><input type="radio" name="collision-action" value="overwrite"> Overwrite using the same index name</label>';
+    h+='<div class="msg" style="color:var(--danger)">Overwrite permanently replaces the old destination data and index configuration, including its aliases. Stop destination writers and write-block those indices first. A verified temporary copy is prepared before replacement; a failed cutover may leave the original name unavailable.</div>';
+    h+='<label style="display:block;margin:10px 0"><input type="checkbox" id="overwrite-ack"> I understand that overwriting permanently deletes the old destination data.</label>';
   }
 
-  if(newOnly.length>0){
+  if(!local&&newOnly.length>0){
     h+='<div class="msg" style="color:var(--good)"><strong>'+newOnly.length+'</strong> new to '+E(destName)+destTag+':</div>';
     h+='<div class="list">'+newOnly.map(function(n){return '<div>\u2022 '+E(n)+'</div>'}).join('')+'</div>';
   }
@@ -462,8 +496,8 @@ function confirmMigration(names,desc){var destIndices=S.dir==='source->target'?S
   document.getElementById('modal-container').innerHTML=h;
   document.getElementById('modal-bg').addEventListener('click',function(e){if(e.target===this)closeModal()});
   document.getElementById('modal-cancel').addEventListener('click',closeModal);
-  document.getElementById('modal-confirm').addEventListener('click',function(){closeModal();doMigrate(names,desc)});}
-function showConfirm(action,names,fn){if(!names.length)return;
+  document.getElementById('modal-confirm').addEventListener('click',function(){var selected=document.querySelector('input[name="collision-action"]:checked');var choice=local?'rename':(selected?selected.value:'');if(choice==='overwrite'&&!document.getElementById('overwrite-ack').checked){alert('Confirm that the old destination data will be permanently deleted.');return}closeModal();doMigrate(names,desc,choice,intent)});}
+function showConfirm(action,names,fn){if(!names.length)return;var sourceUUID=S.srcInfo&&S.srcInfo.cluster_uuid;
   var lbl={delete:'Delete',open:'Open',close:'Close'},msgs={delete:'Delete '+names.length+' indices? Cannot be undone.',open:'Open '+names.length+' indices.',close:'Close '+names.length+' indices.'};
   var h='<div class="modal-overlay" id="modal-bg"><div class="modal"><h3>\u26a0 '+lbl[action]+' '+names.length+' indices?</h3><div class="msg">'+msgs[action]+'</div>';
   h+='<div class="list">'+names.map(function(n){return '<div>\u2022 '+E(n)+'</div>'}).join('')+'</div>';
@@ -471,13 +505,13 @@ function showConfirm(action,names,fn){if(!names.length)return;
   document.getElementById('modal-container').innerHTML=h;
   document.getElementById('modal-bg').addEventListener('click',function(e){if(e.target===this)closeModal()});
   document.getElementById('modal-cancel').addEventListener('click',closeModal);
-  document.getElementById('modal-confirm').addEventListener('click',function(){closeModal();fn()});}
+  document.getElementById('modal-confirm').addEventListener('click',function(){closeModal();runBulk(action,names,sourceUUID)});}
 function closeModal(){document.getElementById('modal-container').innerHTML=''}
-async function runBulk(action){
-  var names=Object.keys(S.selected),count=names.length;
+async function runBulk(action,names,sourceUUID){
+  names=names||Object.keys(S.selected);sourceUUID=sourceUUID||(S.srcInfo&&S.srcInfo.cluster_uuid);var count=names.length;
   var lbl={delete:'Deleting',open:'Opening',close:'Closing'};
   S.statusMsg='<span style="animation:blink .6s infinite alternate">\u27F3</span> '+lbl[action]+' '+count+' indices...';renderIndices();
-  try{await POST('/api/indices/'+action,{indices:names});S.selected={};S.statusMsg='\u2705 '+lbl[action].replace('ing','ed')+' '+count+' indices';}catch(e){S.statusMsg='\u274C Error: '+e}
+  try{var result=await POST('/api/indices/'+action,{indices:names,source_uuid:sourceUUID});var failed=(result.results||[]).filter(function(r){return !r.ok});if(!result.results||result.results.length!==names.length)throw new Error('Incomplete action response');S.selected={};failed.forEach(function(r){S.selected[r.index]=true});S.statusMsg=E((count-failed.length)+' succeeded, '+failed.length+' failed'+(failed.length?': '+failed.map(function(r){return r.index+': '+r.error}).join('; '):''));}catch(e){S.statusMsg='\u274C Error: '+E(String(e))}
   await loadAll();renderIndices();
   setTimeout(function(){S.statusMsg='';renderIndices()},3000);
 }
@@ -488,7 +522,7 @@ document.querySelectorAll('nav button.tab').forEach(function(b){b.addEventListen
   document.querySelectorAll('nav button.tab').forEach(function(x){x.classList.remove('active')});
   this.classList.add('active');S.tab=this.dataset.tab;updateView();});});
 async function init(){await loadAll();await loadJobs();updateView();
-  setInterval(async function(){var ae=document.activeElement,ai=ae?ae.id:'';if(ai==='src-host'||ai==='tgt-host'||ai==='mig-desc'||ai==='preview-idx'||ai==='mig-query'||ai==='nodea-tag'||ai==='nodeb-tag')return;await Promise.all([loadAll(),loadJobs()]);updateView()},3000);}
+  setInterval(async function(){var ae=document.activeElement,ai=ae?ae.id:'';if(ae&&ae.dataset&&ae.dataset.paginationControl)return;if(ai==='src-host'||ai==='tgt-host'||ai==='mig-desc'||ai==='preview-idx'||ai==='mig-query'||ai==='nodea-tag'||ai==='nodeb-tag')return;await Promise.all([loadAll(),loadJobs()]);updateView()},3000);}
 init();
 </script>
 </body>

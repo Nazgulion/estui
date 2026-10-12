@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -43,15 +44,34 @@ type clusterInfo struct {
 }
 
 type migrateRequest struct {
-	Indices     []string `json:"indices"`
-	Overwrite   *bool    `json:"overwrite,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Query       string   `json:"query,omitempty"`
-	Direction   string   `json:"direction,omitempty"`
-	ForceScroll bool     `json:"force_scroll,omitempty"`
+	Remaps          map[string]RemapOptions `json:"remaps,omitempty"`
+	CollisionAction string                  `json:"collision_action,omitempty"`
+	OverwriteUUIDs  map[string]string       `json:"overwrite_uuids,omitempty"`
+	SourceUUID      string                  `json:"source_uuid"`
+	TargetUUID      string                  `json:"target_uuid"`
+	Indices         []string                `json:"indices"`
+	Overwrite       *bool                   `json:"overwrite,omitempty"`
+	Description     string                  `json:"description,omitempty"`
+	Query           string                  `json:"query,omitempty"`
+	Direction       string                  `json:"direction,omitempty"`
+	ForceScroll     bool                    `json:"force_scroll,omitempty"`
 }
 
 type migrateJob struct {
+	Remap        RemapState `json:"remap,omitempty"`
+	FinalIndex   string     `json:"final_index,omitempty"`
+	ReplaceUUID  string     `json:"replace_uuid,omitempty"`
+	ReplacePhase string     `json:"replace_phase,omitempty"`
+	StageIndex   string     `json:"stage_index,omitempty"`
+	StageUUID    string     `json:"stage_uuid,omitempty"`
+	Local        bool       `json:"local,omitempty"`
+
+	SourceUUID       string   `json:"source_uuid,omitempty"`
+	VerifiedHash     string   `json:"verified_hash,omitempty"`
+	VerifiedCount    int64    `json:"verified_count"`
+	RetainedTargets  []string `json:"retained_targets,omitempty"`
+	TargetUUID       string   `json:"target_uuid,omitempty"`
+	SourceWasClosed  *bool    `json:"source_was_closed,omitempty"`
 	Resume           bool     `json:"-"`
 	TaskID           string   `json:"task_id,omitempty"`
 	ReindexUncertain bool     `json:"reindex_uncertain,omitempty"`
@@ -69,7 +89,8 @@ type migrateJob struct {
 }
 
 type bulkRequest struct {
-	Indices []string `json:"indices"`
+	SourceUUID string   `json:"source_uuid"`
+	Indices    []string `json:"indices"`
 }
 
 type actionResult struct {
@@ -85,6 +106,7 @@ var (
 )
 
 type Server struct {
+	operationMu  sync.Mutex
 	connectionMu sync.RWMutex
 	Source       *elastic.Client
 	Target       *elastic.Client
@@ -99,6 +121,7 @@ type Server struct {
 }
 
 func New(source, target *elastic.Client, sourceURL, targetURL string, sourceCfg, targetCfg config.ESConnection, configPath string, log *logging.Logger, port int) *Server {
+	configPath, _ = filepath.Abs(configPath)
 	return &Server{
 		Source:     source,
 		Target:     target,
@@ -107,7 +130,7 @@ func New(source, target *elastic.Client, sourceURL, targetURL string, sourceCfg,
 		SourceCfg:  sourceCfg,
 		TargetCfg:  targetCfg,
 		ConfigPath: configPath,
-		StatePath:  "migration_state.json",
+		StatePath:  filepath.Join(filepath.Dir(configPath), "migration_state.json"),
 		Log:        log,
 		Port:       port,
 	}
@@ -145,8 +168,16 @@ func (s *Server) handler() http.Handler {
 func (s *Server) listenAddress() string { return fmt.Sprintf("127.0.0.1:%d", s.Port) }
 
 func (s *Server) Start() error {
+	release, err := acquireProcessLock(s.StatePath)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := LoadState(s.StatePath); err != nil {
 		return fmt.Errorf("load migration state: %w", err)
+	}
+	if err := s.recoverPreview(); err != nil {
+		return fmt.Errorf("restore interrupted preview: %w", err)
 	}
 	s.Log.Info("web", "starting server on http://%s", s.listenAddress())
 	server := &http.Server{Addr: s.listenAddress(), Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -208,16 +239,19 @@ func (s *Server) handleTargetDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClusters(w http.ResponseWriter, r *http.Request) {
-	httpJSON(w, 200, map[string]any{
-		"source": clusterInfo{
-			Name:    s.Source.Name(),
-			Healthy: true,
-		},
-		"target": clusterInfo{
-			Name:    s.Target.Name(),
-			Healthy: true,
-		},
-	})
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	source, err := s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0])
+	if err != nil {
+		httpJSON(w, 502, map[string]string{"error": err.Error()})
+		return
+	}
+	target, err := s.Target.GetClusterInfo(ctx, s.TargetCfg.Hosts[0])
+	if err != nil {
+		httpJSON(w, 502, map[string]string{"error": err.Error()})
+		return
+	}
+	httpJSON(w, 200, map[string]any{"source": source, "target": target})
 }
 
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
@@ -237,9 +271,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	errs := map[string]string{}
 
 	if req.Source != "" && strings.TrimSpace(req.Source) != strings.TrimSpace(s.SourceCfg.Hosts[0]) {
-		cfg := s.SourceCfg
-		cfg.Hosts = []string{req.Source}
-		cfg.RemoteReindexHost = ""
+		cfg := config.ESConnection{Hosts: []string{req.Source}}
 		client, err := elastic.NewClient(cfg, s.Log)
 		if err != nil {
 			errs["source"] = err.Error()
@@ -253,9 +285,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Target != "" && strings.TrimSpace(req.Target) != strings.TrimSpace(s.TargetCfg.Hosts[0]) {
-		cfg := s.TargetCfg
-		cfg.Hosts = []string{req.Target}
-		cfg.RemoteReindexHost = ""
+		cfg := config.ESConnection{Hosts: []string{req.Target}}
 		client, err := elastic.NewClient(cfg, s.Log)
 		if err != nil {
 			errs["target"] = err.Error()
@@ -305,6 +335,19 @@ func (s *Server) handleIndexDelete(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
 	}
+	if err := validateIndexNames(req.Indices); err != nil {
+		httpJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.SourceUUID != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		info, err := s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0])
+		cancel()
+		if err != nil || info.ClusterUUID != req.SourceUUID {
+			httpJSON(w, 409, map[string]string{"error": "source connection changed; reload before applying this action"})
+			return
+		}
+	}
 	results := make([]actionResult, len(req.Indices))
 	for i, name := range req.Indices {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -329,6 +372,19 @@ func (s *Server) handleIndexOpen(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
 	}
+	if err := validateIndexNames(req.Indices); err != nil {
+		httpJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.SourceUUID != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		info, err := s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0])
+		cancel()
+		if err != nil || info.ClusterUUID != req.SourceUUID {
+			httpJSON(w, 409, map[string]string{"error": "source connection changed; reload before applying this action"})
+			return
+		}
+	}
 	results := make([]actionResult, len(req.Indices))
 	for i, name := range req.Indices {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -352,6 +408,19 @@ func (s *Server) handleIndexClose(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
+	}
+	if err := validateIndexNames(req.Indices); err != nil {
+		httpJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.SourceUUID != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		info, err := s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0])
+		cancel()
+		if err != nil || info.ClusterUUID != req.SourceUUID {
+			httpJSON(w, 409, map[string]string{"error": "source connection changed; reload before applying this action"})
+			return
+		}
 	}
 	results := make([]actionResult, len(req.Indices))
 	for i, name := range req.Indices {

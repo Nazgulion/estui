@@ -9,6 +9,21 @@ import (
 )
 
 type IndexState struct {
+	Remap        RemapState `json:"remap,omitempty"`
+	FinalIndex   string     `json:"final_index,omitempty"`
+	ReplaceUUID  string     `json:"replace_uuid,omitempty"`
+	ReplacePhase string     `json:"replace_phase,omitempty"`
+	StageIndex   string     `json:"stage_index,omitempty"`
+	StageUUID    string     `json:"stage_uuid,omitempty"`
+	Local        bool       `json:"local,omitempty"`
+
+	TargetIndex      string   `json:"target_index,omitempty"`
+	SourceUUID       string   `json:"source_uuid,omitempty"`
+	VerifiedHash     string   `json:"verified_hash,omitempty"`
+	VerifiedCount    int64    `json:"verified_count"`
+	RetainedTargets  []string `json:"retained_targets,omitempty"`
+	TargetUUID       string   `json:"target_uuid,omitempty"`
+	SourceWasClosed  *bool    `json:"source_was_closed,omitempty"`
 	TaskID           string   `json:"task_id,omitempty"`
 	ReindexUncertain bool     `json:"reindex_uncertain,omitempty"`
 	Name             string   `json:"name"`
@@ -26,6 +41,7 @@ type ConnectionState struct {
 }
 
 type MigrationState struct {
+	Preview *PreviewRecovery `json:"preview_recovery,omitempty"`
 	Active  *ActiveMigration `json:"active,omitempty"`
 	History []HistoryEntry   `json:"history,omitempty"`
 }
@@ -106,7 +122,16 @@ func SaveState(path string) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(f.Name(), path)
+	if err := os.Rename(f.Name(), path); err != nil {
+		return err
+	}
+	// Persist the directory entry as well as the checkpoint contents.
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func GetState() MigrationState {
@@ -228,8 +253,15 @@ func storeJob(j migrateJob) {
 	for i := range state.Active.Indices {
 		idx := &state.Active.Indices[i]
 		if idx.Name == j.SourceIndex {
+			idx.Remap = j.Remap
 			idx.Status, idx.Transferred, idx.Error = j.Status, j.Progress, j.Error
 			idx.TaskID, idx.ReindexUncertain = j.TaskID, j.ReindexUncertain
+			idx.TargetUUID, idx.SourceWasClosed = j.TargetUUID, j.SourceWasClosed
+			idx.TargetIndex, idx.SourceUUID = j.TargetIndex, j.SourceUUID
+			idx.FinalIndex, idx.ReplaceUUID, idx.ReplacePhase = j.FinalIndex, j.ReplaceUUID, j.ReplacePhase
+			idx.StageIndex, idx.StageUUID, idx.Local = j.StageIndex, j.StageUUID, j.Local
+			idx.VerifiedHash, idx.VerifiedCount = j.VerifiedHash, j.VerifiedCount
+			idx.RetainedTargets = append([]string(nil), j.RetainedTargets...)
 			idx.Logs = append([]string(nil), j.Logs...)
 			if j.Total > 0 {
 				idx.DocsTotal = j.Total

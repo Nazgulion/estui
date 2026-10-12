@@ -49,11 +49,6 @@ func (c *Client) GetClusterInfo(ctx context.Context, host string) (*ClusterInfo,
 	info.ClusterUUID = infoResp.ClusterUUID
 	info.Version = infoResp.Version.Number
 
-	cntResp, err := c.es.Count(c.es.Count.WithContext(ctx))
-	if err == nil {
-		defer cntResp.Body.Close()
-	}
-
 	ds, err := c.GetDiskStats(ctx)
 	if err == nil {
 		info.Disk = ds

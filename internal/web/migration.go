@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"estui/internal/elastic"
@@ -18,7 +19,7 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req migrateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<20)).Decode(&req); err != nil {
 		httpJSON(w, 400, map[string]string{"error": "invalid JSON"})
 		return
 	}
@@ -45,18 +46,27 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	srcClient := s.Source
+	if (req.SourceUUID != "" && req.SourceUUID != srcInfo.ClusterUUID) || (req.TargetUUID != "" && req.TargetUUID != tgtInfo.ClusterUUID) {
+		httpJSON(w, 409, map[string]string{"error": "cluster connection changed since confirmation; reload before migrating"})
+		return
+	}
+	if err := validateIndexNames(req.Indices); err != nil {
+		httpJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+
+	srcClient, dstClient := s.Source, s.Target
 	if req.Direction == "target->source" {
-		srcClient = s.Target
+		srcClient, dstClient = s.Target, s.Source
 	}
 	srcIndices, listErr := srcClient.ListIndices(ctx)
 	if listErr != nil {
 		httpJSON(w, 500, map[string]string{"error": "failed to list source indices: " + listErr.Error()})
 		return
 	}
-	srcIndexMap := make(map[string]bool)
+	srcIndexMap := make(map[string]string)
 	for _, idx := range srcIndices {
-		srcIndexMap[idx.Name] = true
+		srcIndexMap[idx.Name] = idx.UUID
 	}
 	var missing []string
 	seen := make(map[string]bool)
@@ -66,7 +76,11 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		seen[name] = true
-		if !srcIndexMap[name] {
+		if uuid, exists := srcIndexMap[name]; exists && uuid == "" {
+			httpJSON(w, 400, map[string]string{"error": "source index UUID is unavailable: " + name})
+			return
+		}
+		if _, exists := srcIndexMap[name]; !exists {
 			missing = append(missing, name)
 		}
 	}
@@ -79,21 +93,115 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs := make([]migrateJob, len(req.Indices))
-	overwrite := true
-	if req.Overwrite != nil {
-		overwrite = *req.Overwrite
-	}
-	for i, idx := range req.Indices {
-		jobs[i] = migrateJob{
-			SourceIndex: idx,
-			TargetIndex: idx,
-			Status:      "queued",
-			Overwrite:   overwrite,
-			Query:       req.Query,
-			Direction:   req.Direction,
-			ForceScroll: req.ForceScroll,
+	if len(req.Remaps) > 0 {
+		if len(req.Remaps) != len(req.Indices) || req.SourceUUID != srcInfo.ClusterUUID || req.TargetUUID != tgtInfo.ClusterUUID || req.CollisionAction == "overwrite" {
+			httpJSON(w, 400, map[string]string{"error": "mapping plans require every selected index, confirmed cluster identities, and new destination names"})
+			return
 		}
+		for name, options := range req.Remaps {
+			if !seen[name] {
+				httpJSON(w, 400, map[string]string{"error": "mapping plan contains an unselected index"})
+				return
+			}
+			options, err = validateRemapOptions(name, options, req, srcIndexMap[name])
+			if err != nil {
+				httpJSON(w, 400, map[string]string{"error": name + ": " + err.Error()})
+				return
+			}
+			req.Remaps[name] = options
+		}
+	}
+	local := srcInfo.ClusterUUID == tgtInfo.ClusterUUID
+	action := req.CollisionAction
+	// Legacy true only authorized a separate copy, never destructive replacement.
+	if action == "" && req.Overwrite != nil && *req.Overwrite {
+		action = "rename"
+	}
+	if action != "" && action != "rename" && action != "overwrite" && action != "skip" {
+		httpJSON(w, 400, map[string]string{"error": "invalid collision action"})
+		return
+	}
+	if local && action == "overwrite" {
+		httpJSON(w, 400, map[string]string{"error": "same-cluster migration always uses a new prefixed index; overwrite is not allowed"})
+		return
+	}
+	destinations, err := dstClient.ListIndices(ctx)
+	if err != nil {
+		httpJSON(w, 502, map[string]string{"error": err.Error()})
+		return
+	}
+	destUUIDs := map[string]string{}
+	for _, idx := range destinations {
+		destUUIDs[idx.Name] = idx.UUID
+	}
+	collisions := []string{}
+	for _, name := range req.Indices {
+		if _, ok := destUUIDs[name]; ok {
+			collisions = append(collisions, name)
+		}
+	}
+	if len(req.Remaps) == 0 && !local && len(collisions) > 0 && action == "" && req.Overwrite == nil {
+		httpJSON(w, 409, map[string]any{"error": "destination indices already exist; choose overwrite or rename", "collisions": collisions})
+		return
+	}
+	reservedDest, reservedBackup := map[string]bool{}, map[string]bool{}
+	for _, o := range req.Remaps {
+		_, exists := destUUIDs[o.Destination]
+		if exists || reservedDest[o.Destination] || (local && seen[o.Destination]) {
+			httpJSON(w, 409, map[string]string{"error": "destination must be a new, distinct index: " + o.Destination})
+			return
+		}
+		reservedDest[o.Destination] = true
+		if strings.HasPrefix(o.OriginalAction, "backup") {
+			_, exists := srcIndexMap[o.BackupIndex]
+			if exists || reservedBackup[o.BackupIndex] {
+				httpJSON(w, 409, map[string]string{"error": "backup must be a new, distinct index: " + o.BackupIndex})
+				return
+			}
+			reservedBackup[o.BackupIndex] = true
+		}
+	}
+	if local {
+		for name := range reservedBackup {
+			if reservedDest[name] {
+				httpJSON(w, 409, map[string]string{"error": "backup and destination names must differ"})
+				return
+			}
+		}
+	}
+	jobs := make([]migrateJob, len(req.Indices))
+	overwrite := action == "rename" // Internal permission to allocate a separate copy.
+	for i, name := range req.Indices {
+		if options, ok := req.Remaps[name]; ok {
+			jobs[i] = migrateJob{SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: options.Destination, Status: "queued", Query: req.Query, Direction: req.Direction, Local: local, Remap: RemapState{Options: options, Phase: "copying"}}
+			continue
+		}
+		target := name
+		_, exists := destUUIDs[name]
+		if local || (exists && (action == "rename" || action == "overwrite")) {
+			target, err = newCopyName(name, local)
+			if err != nil {
+				httpJSON(w, 500, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+		job := migrateJob{SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: target, Status: "queued", Overwrite: overwrite, Query: req.Query, Direction: req.Direction, ForceScroll: req.ForceScroll, Local: local}
+		if !local && exists && action == "overwrite" {
+			expected := req.OverwriteUUIDs[name]
+			if expected == "" || expected != destUUIDs[name] || req.SourceUUID != srcInfo.ClusterUUID || req.TargetUUID != tgtInfo.ClusterUUID {
+				httpJSON(w, 409, map[string]string{"error": "overwrite requires confirmation of the current clusters and destination index UUIDs; reload the dialog"})
+				return
+			}
+			original, err := dstClient.GetIndexDetail(ctx, name)
+			if err != nil || !elastic.WriteBlocked(original) {
+				httpJSON(w, 409, map[string]string{"error": "stop destination writers and write-block " + name + " before confirming overwrite"})
+				return
+			}
+			job.FinalIndex = name
+			job.ReplaceUUID = expected
+			job.ReplacePhase = "staging"
+		}
+		jobs[i] = job
 	}
 	migrateJobs = jobs
 
@@ -118,7 +226,7 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 		active.Dest.ClusterUUID = tgtInfo.ClusterUUID
 	}
 	for i, idx := range req.Indices {
-		active.Indices[i] = IndexState{Name: idx, Status: "queued"}
+		active.Indices[i] = IndexState{Remap: jobs[i].Remap, Name: idx, SourceUUID: srcIndexMap[idx], TargetIndex: jobs[i].TargetIndex, FinalIndex: jobs[i].FinalIndex, ReplaceUUID: jobs[i].ReplaceUUID, ReplacePhase: jobs[i].ReplacePhase, Local: local, Status: "queued"}
 		count, _ := srcClient.Count(ctx, idx)
 		if count > 0 {
 			active.Indices[i].DocsTotal = count
@@ -138,26 +246,6 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) runMigration(jobs []migrateJob) {
-	// Helper: pick source/target based on direction
-	getSrc := func(dir string) *elastic.Client {
-		if dir == "target->source" {
-			return s.Target
-		}
-		return s.Source
-	}
-	getDst := func(dir string) *elastic.Client {
-		if dir == "target->source" {
-			return s.Source
-		}
-		return s.Target
-	}
-	getSrcURL := func(dir string) string {
-		if dir == "target->source" {
-			return s.TargetURL
-		}
-		return s.SourceURL
-	}
-
 	defer func() {
 		migrateMu.Lock()
 		defer migrateMu.Unlock()
@@ -165,7 +253,6 @@ func (s *Server) runMigration(jobs []migrateJob) {
 		for _, j := range jobs {
 			if !indexFinished(j.Status) {
 				allDone = false
-				break
 			}
 		}
 		if allDone {
@@ -173,304 +260,290 @@ func (s *Server) runMigration(jobs []migrateJob) {
 			CompleteMigration()
 			if err := SaveState(s.StatePath); err != nil {
 				restoreState(previous)
-				s.Log.Error("web-migrate", "save completion: %v", err)
+				s.Log.Error("migration", "save completion: %v", err)
 			}
 		}
 		migrateActive = false
 	}()
-	persistFailed := false
-
 	for i := range jobs {
 		j := &jobs[i]
-		func() {
-			// This runs after index cleanup and on every success, skip, or error path.
-			defer func() {
-				migrateMu.Lock()
-				defer migrateMu.Unlock()
-				if err := s.updateStateFromJob(j); err != nil {
-					j.Status, j.Error = "failed", "save migration state: "+err.Error()
-					storeJob(*j)
-					persistFailed = true
-				}
-			}()
-
-			migrateMu.Lock()
-			j.Status = "running"
-			j.Logs = append(j.Logs, fmt.Sprintf("[%s] starting migration", time.Now().Format("15:04:05")))
-			if j.Query != "" && j.Query != "*" {
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] query: %s", time.Now().Format("15:04:05"), j.Query))
-			}
-			migrateMu.Unlock()
-
-			if err := s.updateStateFromJob(j); err != nil {
-				failJob(j, err)
-				return
-			}
-			ctx := context.Background()
-			src := getSrc(j.Direction)
-			dst := getDst(j.Direction)
-			srcURL := getSrcURL(j.Direction)
-
-			// Auto-open closed indices, restore original state after migration
-			srcIndices, listErr := src.ListIndices(ctx)
-			if listErr != nil {
-				failJob(j, listErr)
-				return
-			}
-			wasClosed := false
-			for _, idx := range srcIndices {
-				if idx.Name == j.SourceIndex && idx.Status == "close" {
-					wasClosed = true
-					break
-				}
-			}
-			if wasClosed {
-				migrateMu.Lock()
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] index is closed, auto-opening...", time.Now().Format("15:04:05")))
-				migrateMu.Unlock()
-				if err := src.OpenIndex(ctx, j.SourceIndex); err != nil {
-					migrateMu.Lock()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] WARN: failed to auto-open: %v", time.Now().Format("15:04:05"), err))
-					migrateMu.Unlock()
-				} else {
-					// Wait for index to become searchable
-					migrateMu.Lock()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] waiting for index to become ready...", time.Now().Format("15:04:05")))
-					migrateMu.Unlock()
-					for attempt := 0; attempt < 30; attempt++ {
-						time.Sleep(2 * time.Second)
-						indices, _ := src.ListIndices(ctx)
-						ready := false
-						for _, idx := range indices {
-							if idx.Name == j.SourceIndex && idx.Status == "open" {
-								ready = true
-								break
-							}
-						}
-						if ready {
-							migrateMu.Lock()
-							j.Logs = append(j.Logs, fmt.Sprintf("[%s] index ready (opened after %ds)", time.Now().Format("15:04:05"), (attempt+1)*2))
-							migrateMu.Unlock()
-							break
-						}
-					}
-				}
-			}
-			defer func() {
-				if wasClosed {
-					if err := src.CloseIndex(ctx, j.SourceIndex); err != nil {
-						migrateMu.Lock()
-						j.Logs = append(j.Logs, fmt.Sprintf("[%s] WARN: failed to auto-close after migration: %v", time.Now().Format("15:04:05"), err))
-						migrateMu.Unlock()
-					} else {
-						migrateMu.Lock()
-						j.Logs = append(j.Logs, fmt.Sprintf("[%s] closed — restored original state", time.Now().Format("15:04:05")))
-						migrateMu.Unlock()
-					}
-				}
-				// Always close the target index after successful migration
-				if j.Status == "completed" {
-					if err := dst.CloseIndex(ctx, j.TargetIndex); err != nil {
-						migrateMu.Lock()
-						j.Logs = append(j.Logs, fmt.Sprintf("[%s] WARN: failed to close target index: %v", time.Now().Format("15:04:05"), err))
-						migrateMu.Unlock()
-					} else {
-						migrateMu.Lock()
-						j.Logs = append(j.Logs, fmt.Sprintf("[%s] closed target index", time.Now().Format("15:04:05")))
-						migrateMu.Unlock()
-					}
-				}
-			}()
-
-			detail, err := src.GetIndexDetail(ctx, j.SourceIndex)
-			if err != nil {
-				migrateMu.Lock()
-				j.Status = "failed"
-				j.Error = err.Error()
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: read settings: %v", time.Now().Format("15:04:05"), err))
-				migrateMu.Unlock()
-				s.Log.Error("web-migrate", "detail failed for %s: %v", j.SourceIndex, err)
-				return
-			}
-
-			migrateMu.Lock()
-			j.Logs = append(j.Logs, fmt.Sprintf("[%s] read settings and mappings", time.Now().Format("15:04:05")))
-			migrateMu.Unlock()
-
-			tgtIndices, checkErr := dst.ListIndices(ctx)
-			if checkErr != nil {
-				failJob(j, checkErr)
-				return
-			}
-			exists := false
-			if checkErr == nil {
-				for _, ti := range tgtIndices {
-					if ti.Name == j.TargetIndex {
-						exists = true
-						break
-					}
-				}
-			}
-			if exists {
-				if !j.Overwrite {
-					if j.Resume {
-						failJob(j, fmt.Errorf("destination %s exists for an unfinished index and overwrite is disabled; inspect the partial destination before starting a new migration", j.TargetIndex))
-						return
-					}
-					migrateMu.Lock()
-					j.Status = "skipped"
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] ⏭ skipped — already exists on target (overwrite disabled)", time.Now().Format("15:04:05")))
-					migrateMu.Unlock()
-					s.Log.Info("web-migrate", "skipping %s — exists on target", j.SourceIndex)
-					return
-				}
-				migrateMu.Lock()
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] index already exists on target, deleting...", time.Now().Format("15:04:05")))
-				migrateMu.Unlock()
-				if delErr := dst.DeleteIndex(ctx, j.TargetIndex); delErr != nil {
-					migrateMu.Lock()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: could not delete existing index: %v", time.Now().Format("15:04:05"), delErr))
-					j.Status, j.Error = "failed", delErr.Error()
-					migrateMu.Unlock()
-					return
-				}
-			}
-
-			err = dst.CreateIndexFromSource(ctx, j.TargetIndex, detail)
-			if err != nil {
-				migrateMu.Lock()
-				j.Status = "failed"
-				j.Error = err.Error()
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: create index: %v", time.Now().Format("15:04:05"), err))
-				migrateMu.Unlock()
-				s.Log.Error("web-migrate", "create index failed for %s: %v", j.TargetIndex, err)
-				return
-			}
-
-			migrateMu.Lock()
-			j.Logs = append(j.Logs, fmt.Sprintf("[%s] created target index", time.Now().Format("15:04:05")))
-			migrateMu.Unlock()
-
-			if j.ForceScroll {
-				migrateMu.Lock()
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] proxy mode — using scroll+bulk", time.Now().Format("15:04:05")))
-				migrateMu.Unlock()
-				s.Log.Info("web-migrate", "proxy mode for %s, using scroll+bulk", j.SourceIndex)
-
-				err = s.runScrollMigration(ctx, j)
-				if err != nil {
-					migrateMu.Lock()
-					j.Status = "failed"
-					j.Error = err.Error()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: scroll+bulk: %v", time.Now().Format("15:04:05"), err))
-					migrateMu.Unlock()
-					s.Log.Error("web-migrate", "scroll+bulk failed for %s: %v", j.SourceIndex, err)
-					return
-				}
-
-				migrateMu.Lock()
-				j.Status = "completed"
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] completed: %d/%d docs (scroll+bulk)", time.Now().Format("15:04:05"), j.Progress, j.Total))
-				migrateMu.Unlock()
-				return
-			}
-
-			// Persist uncertainty before sending: a crash can happen after ES accepts
-			// the task but before its ID reaches us.
-			migrateMu.Lock()
-			j.ReindexUncertain = true
-			migrateMu.Unlock()
-			if err := s.updateStateFromJob(j); err != nil {
-				failJob(j, err)
-				return
-			}
-			task, err := dst.ReindexAsync(ctx, srcURL, j.SourceIndex, j.TargetIndex, j.Query)
-			if err != nil {
-				if !errors.Is(err, elastic.ErrReindexRejected) {
-					migrateMu.Lock()
-					j.ReindexUncertain = true
-					migrateMu.Unlock()
-					failJob(j, fmt.Errorf("native task may still be running; inspect Elasticsearch before abandoning or retrying: %w", err))
-					return
-				}
-				migrateMu.Lock()
-				j.ReindexUncertain = false
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] native reindex unavailable: %v", time.Now().Format("15:04:05"), err))
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] falling back to scroll+bulk...", time.Now().Format("15:04:05")))
-				migrateMu.Unlock()
-				s.Log.Info("web-migrate", "native reindex failed for %s, trying scroll+bulk", j.SourceIndex)
-
-				err = s.runScrollMigration(ctx, j)
-				if err != nil {
-					migrateMu.Lock()
-					j.Status = "failed"
-					j.Error = err.Error()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: scroll+bulk: %v", time.Now().Format("15:04:05"), err))
-					migrateMu.Unlock()
-					s.Log.Error("web-migrate", "scroll+bulk failed for %s: %v", j.SourceIndex, err)
-					return
-				}
-
-				migrateMu.Lock()
-				j.Status = "completed"
-				j.Logs = append(j.Logs, fmt.Sprintf("[%s] completed: %d/%d docs (scroll+bulk)", time.Now().Format("15:04:05"), j.Progress, j.Total))
-				migrateMu.Unlock()
-				return
-			}
-
-			migrateMu.Lock()
-			j.TaskID = task.ID
-			j.ReindexUncertain = false
-			j.Logs = append(j.Logs, fmt.Sprintf("[%s] reindex task %s started", time.Now().Format("15:04:05"), task.ID))
-			migrateMu.Unlock()
-
-			s.Log.Info("web-migrate", "task %s started for %s", task.ID, j.SourceIndex)
-			if err := s.updateStateFromJob(j); err != nil {
-				failJob(j, err)
-				return
-			}
-
-			for {
-				status, err := dst.GetTaskStatus(ctx, task.ID)
-				if err != nil {
-					failJob(j, fmt.Errorf("cannot confirm native task %s stopped; retry Continue after checking the cluster: %w", task.ID, err))
-					return
-				}
-
-				migrateMu.Lock()
-				j.Progress = status.Created + status.Updated + status.Deleted
-				j.Total = status.Total
-				if status.Status != "running" {
-					j.TaskID = ""
-				}
-				if status.Status == "failed" {
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] native reindex failed: %s; falling back to scroll+bulk...", time.Now().Format("15:04:05"), status.Error))
-					migrateMu.Unlock()
-					s.Log.Info("web-migrate", "native reindex task failed for %s, trying scroll+bulk", j.SourceIndex)
-					s.runScrollFallback(ctx, j)
-					break
-				}
-				if status.Status != "running" {
-					j.Status = status.Status
-				}
-				migrateMu.Unlock()
-
-				if status.Status != "running" {
-					migrateMu.Lock()
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] native reindex: %d/%d docs", time.Now().Format("15:04:05"), j.Progress, j.Total))
-					j.Status = status.Status
-					j.Logs = append(j.Logs, fmt.Sprintf("[%s] completed: %d/%d docs", time.Now().Format("15:04:05"), j.Progress, j.Total))
-					migrateMu.Unlock()
-					break
-				}
-				time.Sleep(1 * time.Second)
-			}
-
-		}()
-		if persistFailed {
+		migrateMu.Lock()
+		j.Status = "running"
+		j.Error = ""
+		migrateMu.Unlock()
+		jobLog(j, "starting migration")
+		if err := s.updateStateFromJob(j); err != nil {
+			failJob(j, err)
+			return
+		}
+		err := s.runIndexMigration(context.Background(), j)
+		if err != nil {
+			failJob(j, err)
+		}
+		if err := s.updateStateFromJob(j); err != nil {
+			failJob(j, err)
+			return
+		}
+		// Stop after the first failure; do not amplify an outage across other indices.
+		if err != nil {
 			return
 		}
 	}
+}
+
+func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err error) {
+	src, dst := s.Source, s.Target
+	if j.Direction == "target->source" {
+		src, dst = s.Target, s.Source
+	}
+	if j.Local && (j.TargetIndex == j.SourceIndex || j.FinalIndex != "") {
+		return fmt.Errorf("same-cluster destination must differ from source and cannot overwrite")
+	}
+	defer func() {
+		if j.TaskID != "" || j.ReindexUncertain {
+			return
+		}
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		closeOwned := func(c *elastic.Client, name, uuid string) error {
+			actual, e := migrationIndexUUID(cleanup, c, name)
+			if e != nil {
+				return e
+			}
+			if uuid == "" || actual != uuid {
+				return fmt.Errorf("index %s replaced; refusing to close", name)
+			}
+			return c.CloseIndex(cleanup, name)
+		}
+		if !j.Remap.SourceDeleted && !j.Remap.uncertain() && j.SourceWasClosed != nil && *j.SourceWasClosed && j.SourceUUID != "" {
+			err = errors.Join(err, closeOwned(src, j.SourceIndex, j.SourceUUID))
+		}
+		if err == nil && j.Status == "completed" {
+			err = closeOwned(dst, j.TargetIndex, j.TargetUUID)
+		}
+	}()
+	if j.Remap.enabled() && j.Remap.uncertain() {
+		return fmt.Errorf("original deletion outcome is unknown; manual reconciliation required")
+	}
+	if j.Remap.enabled() && j.Remap.SourceDeleted {
+		return s.completeDeletedRemap(ctx, src, dst, j)
+	}
+	// Validate the source before any destination mutation, including recovery.
+	if j.TaskID != "" && j.SourceUUID == "" {
+		return fmt.Errorf("legacy native task lacks source identity; manual reconciliation is required")
+	}
+	detail, err := src.GetIndexDetail(ctx, j.SourceIndex)
+	if err != nil {
+		return err
+	}
+	sourceUUID, err := elastic.SourceIdentity(detail)
+	if err != nil {
+		return err
+	}
+	if j.SourceUUID != "" && j.SourceUUID != sourceUUID {
+		return fmt.Errorf("source index %s was replaced", j.SourceIndex)
+	}
+	status, err := previewIndexStatus(ctx, src, j.SourceIndex)
+	if err != nil {
+		return err
+	}
+	migrateMu.Lock()
+	j.SourceUUID = sourceUUID
+	if j.SourceWasClosed == nil {
+		closed := status == "close"
+		j.SourceWasClosed = &closed
+	}
+	migrateMu.Unlock()
+	if err := s.updateStateFromJob(j); err != nil {
+		return err
+	}
+	if status == "close" {
+		if err := src.OpenIndex(ctx, j.SourceIndex); err != nil {
+			return err
+		}
+		if err := waitPreviewIndexOpen(ctx, src, j.SourceIndex); err != nil {
+			return err
+		}
+	}
+	// The explicit block API waits for in-flight writes to drain.
+	if err := src.BlockWrites(ctx, j.SourceIndex); err != nil {
+		return err
+	}
+	if err := src.RefreshIndex(ctx, j.SourceIndex); err != nil {
+		return err
+	}
+	if j.Remap.enabled() && j.Remap.Phase != "copying" {
+		return s.finishRemap(ctx, src, dst, j)
+	}
+	if j.FinalIndex != "" && j.ReplacePhase != "staging" {
+		return s.publishReplacement(ctx, src, dst, j)
+	}
+	if j.TaskID != "" {
+		actual, e := migrationIndexUUID(ctx, dst, j.TargetIndex)
+		if e != nil {
+			return e
+		}
+		if actual != j.TargetUUID || j.TargetUUID == "" {
+			return fmt.Errorf("destination %s was replaced since this migration", j.TargetIndex)
+		}
+		task, e := pollMigrationTask(ctx, dst, j)
+		if e != nil {
+			return e
+		}
+		if task.Status == "completed" {
+			return s.completeTransfer(ctx, src, dst, j)
+		}
+		jobLog(j, "saved native task failed; retaining partial index and starting a fresh copy")
+		if err := s.updateStateFromJob(j); err != nil {
+			return err
+		}
+	}
+	if j.Remap.enabled() {
+		mapping, e := decodeMapping(j.Remap.Options.Mapping, j.SourceIndex)
+		if e != nil {
+			return e
+		}
+		copyDetail := *detail
+		copyDetail.Mappings = mapping
+		detail = &copyDetail
+	}
+	if err := s.prepareDestination(ctx, dst, j, detail); err != nil {
+		return err
+	}
+	if j.Remap.enabled() {
+		if err := checkRemapMapping(ctx, dst, j); err != nil {
+			return err
+		}
+	}
+	if j.Status == "skipped" {
+		return nil
+	}
+	// New transfers always use the configured client. A destination-side remote
+	// address cannot be proven to refer to that same source from this process.
+	jobLog(j, "copying through the configured source connection")
+	if err := s.runScrollMigration(ctx, j); err != nil {
+		return err
+	}
+	return s.completeTransfer(ctx, src, dst, j)
+}
+
+func (s *Server) prepareDestination(ctx context.Context, dst *elastic.Client, j *migrateJob, detail *elastic.IndexDetail) error {
+	indices, err := dst.ListIndices(ctx)
+	if err != nil {
+		return err
+	}
+	exists := false
+	for _, idx := range indices {
+		if idx.Name == j.TargetIndex {
+			exists = true
+		}
+	}
+	if exists {
+		if j.TargetUUID != "" {
+			actual, err := migrationIndexUUID(ctx, dst, j.TargetIndex)
+			if err != nil {
+				return err
+			}
+			if actual != j.TargetUUID {
+				return fmt.Errorf("destination %s was replaced since this migration", j.TargetIndex)
+			}
+		}
+		if j.Remap.enabled() && !j.Resume {
+			return fmt.Errorf("planned destination appeared after confirmation; refusing to reuse it")
+		}
+		if !j.Overwrite && !j.Resume && !j.Local && j.FinalIndex == "" {
+			migrateMu.Lock()
+			j.Status = "skipped"
+			migrateMu.Unlock()
+			jobLog(j, "skipped existing destination; no index was changed")
+			return nil
+		}
+		previous := j.TargetIndex
+		next, err := newCopyName(j.SourceIndex, j.Local)
+		if err != nil {
+			return err
+		}
+		migrateMu.Lock()
+		if j.TargetUUID != "" {
+			j.RetainedTargets = append(j.RetainedTargets, previous)
+		}
+		j.TargetIndex = next
+		j.TargetUUID = ""
+		j.Progress = 0
+		j.Total = 0
+		j.VerifiedHash = ""
+		j.VerifiedCount = 0
+		migrateMu.Unlock()
+		jobLog(j, "preserved %s; new destination is %s", previous, j.TargetIndex)
+	}
+	// Persist the intended name before submitting a non-retried create request.
+	if err := s.updateStateFromJob(j); err != nil {
+		return err
+	}
+	if err := dst.CheckTemplates(ctx, j.TargetIndex); err != nil {
+		return err
+	}
+	if err := dst.CreateIndexFromSource(ctx, j.TargetIndex, detail); err != nil {
+		return err
+	}
+	actual, err := dst.GetIndexDetail(ctx, j.TargetIndex)
+	if err != nil {
+		return err
+	}
+	uuid, ok := elastic.Setting(actual, "uuid").(string)
+	if !ok || uuid == "" {
+		return fmt.Errorf("created index has no UUID")
+	}
+	migrateMu.Lock()
+	j.TargetUUID = uuid
+	migrateMu.Unlock()
+	if err := s.updateStateFromJob(j); err != nil {
+		return err
+	}
+	if len(actual.Aliases) != 0 || elastic.Setting(actual, "lifecycle.name") != nil {
+		return fmt.Errorf("destination unexpectedly has aliases or lifecycle settings; copy stopped")
+	}
+	for _, key := range []string{"default_pipeline", "final_pipeline"} {
+		v := elastic.Setting(actual, key)
+		if v != nil && v != "_none" {
+			return fmt.Errorf("destination unexpectedly has %s; copy stopped", key)
+		}
+	}
+	return nil
+}
+
+func (s *Server) finishCopy(ctx context.Context, src, dst *elastic.Client, j *migrateJob) error {
+	actual, err := migrationIndexUUID(ctx, dst, j.TargetIndex)
+	if err != nil {
+		return err
+	}
+	if j.TargetUUID == "" || actual != j.TargetUUID {
+		return fmt.Errorf("destination identity changed before verification; refusing to block writes")
+	}
+	// Block before reading back so no outside writer can race the verification.
+	if err := dst.BlockWrites(ctx, j.TargetIndex); err != nil {
+		return err
+	}
+	jobLog(j, "verifying source and destination document IDs, routing, and contents")
+	fingerprint, err := verifyCopy(ctx, src, dst, j.SourceIndex, j.TargetIndex, j.SourceUUID, j.TargetUUID, j.Query)
+	if err != nil {
+		return err
+	}
+	migrateMu.Lock()
+	j.VerifiedHash = fingerprint.Hash
+	j.VerifiedCount = fingerprint.Count
+	j.Progress = fingerprint.Count
+	j.Total = fingerprint.Count
+	j.Status = "completed"
+	if j.Remap.enabled() {
+		j.Status = "verifying"
+	}
+	if j.FinalIndex != "" && j.ReplacePhase != "finalizing" && j.ReplacePhase != "complete" {
+		j.Status = "verified"
+	}
+	migrateMu.Unlock()
+	jobLog(j, "verified %d documents; destination %s remains write-blocked", fingerprint.Count, j.TargetIndex)
+	return nil
 }
 
 func (s *Server) updateStateFromJob(j *migrateJob) error {
@@ -507,7 +580,19 @@ func (s *Server) handleMigrateContinue(w http.ResponseWriter, r *http.Request) {
 	var jobs []migrateJob
 	for _, idx := range st.Active.Indices {
 		if indexFinished(idx.Status) {
+			if err := s.verifyFinished(r.Context(), st.Active, idx); err != nil {
+				httpJSON(w, 409, map[string]string{"error": err.Error()})
+				return
+			}
 			continue
+		}
+		if idx.Remap.uncertain() {
+			httpJSON(w, 409, map[string]string{"error": "original deletion outcome unknown for " + idx.Name + "; manual reconciliation required; destination: " + idx.TargetIndex + "; backup: " + idx.Remap.BackupIndex})
+			return
+		}
+		if idx.ReplacePhase == "delete_pending" || idx.ReplacePhase == "clone_pending" {
+			httpJSON(w, 409, map[string]string{"error": "replacement outcome unknown for " + idx.Name + "; manual reconciliation required; verified copy: " + idx.StageIndex})
+			return
 		}
 		if idx.ReindexUncertain {
 			httpJSON(w, 409, map[string]string{"error": "native task outcome unknown for " + idx.Name + "; inspect Elasticsearch before abandoning this migration"})
@@ -518,15 +603,26 @@ func (s *Server) handleMigrateContinue(w http.ResponseWriter, r *http.Request) {
 			if st.Active.Direction == "target->source" {
 				dst = s.Source
 			}
-			task, err := dst.GetTaskStatus(ctx, idx.TaskID)
-			if err != nil || task.Status == "running" {
-				httpJSON(w, 409, map[string]string{"error": "native task " + idx.TaskID + " is still running or cannot be verified"})
+			taskCtx, taskCancel := context.WithTimeout(r.Context(), 30*time.Second)
+			_, err := dst.GetTaskStatus(taskCtx, idx.TaskID)
+			taskCancel()
+			if err != nil {
+				httpJSON(w, 409, map[string]string{"error": "native task " + idx.TaskID + " cannot be verified"})
 				return
 			}
 		}
-		// Old checkpoints without an overwrite choice must not authorize deletion.
+		// Old checkpoints without a choice must default to skipping existing destinations.
 		overwrite := st.Active.Overwrite != nil && *st.Active.Overwrite
-		jobs = append(jobs, migrateJob{SourceIndex: idx.Name, TargetIndex: idx.Name, Status: "queued", Resume: idx.Status == "failed" || idx.Status == "running", Overwrite: overwrite, Query: st.Active.Query, Direction: st.Active.Direction, ForceScroll: st.Active.ForceScroll})
+		jobs = append(jobs, migrateJob{
+			Remap: idx.Remap, SourceIndex: idx.Name, TargetIndex: checkpointTarget(idx), Status: "queued",
+			SourceUUID: idx.SourceUUID, VerifiedHash: idx.VerifiedHash, VerifiedCount: idx.VerifiedCount, RetainedTargets: append([]string(nil), idx.RetainedTargets...),
+			Resume:     idx.Status == "failed" || idx.Status == "running" || idx.Status == "verified" || idx.Status == "verifying",
+			FinalIndex: idx.FinalIndex, ReplaceUUID: idx.ReplaceUUID, ReplacePhase: idx.ReplacePhase, StageIndex: idx.StageIndex, StageUUID: idx.StageUUID, Local: st.Active.Source.ClusterUUID == st.Active.Dest.ClusterUUID,
+			Overwrite: overwrite, Query: st.Active.Query, Direction: st.Active.Direction,
+			ForceScroll: st.Active.ForceScroll, TaskID: idx.TaskID,
+			TargetUUID: idx.TargetUUID, SourceWasClosed: idx.SourceWasClosed,
+			Progress: idx.Transferred, Total: idx.DocsTotal, Logs: append([]string(nil), idx.Logs...),
+		})
 	}
 	if len(jobs) == 0 {
 		CompleteMigration()
@@ -558,6 +654,14 @@ func (s *Server) handleMigrateAbandon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	previous := GetState()
+	if previous.Active != nil {
+		for _, idx := range previous.Active.Indices {
+			if idx.Remap.uncertain() || idx.ReindexUncertain || idx.TaskID != "" || idx.ReplacePhase == "delete_pending" || idx.ReplacePhase == "clone_pending" {
+				httpJSON(w, 409, map[string]string{"error": "cannot abandon an unresolved native task or replacement request; reconcile its outcome first"})
+				return
+			}
+		}
+	}
 	AbandonMigration()
 	if err := SaveState(s.StatePath); err != nil {
 		restoreState(previous)
@@ -583,27 +687,16 @@ func (s *Server) handleMigrateStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) runScrollFallback(ctx context.Context, j *migrateJob) {
-	err := s.runScrollMigration(ctx, j)
-	migrateMu.Lock()
-	defer migrateMu.Unlock()
-	if err != nil {
-		j.Status = "failed"
-		j.Error = err.Error()
-		j.Logs = append(j.Logs, fmt.Sprintf("[%s] ERROR: scroll+bulk: %v", time.Now().Format("15:04:05"), err))
-		s.Log.Error("web-migrate", "scroll+bulk failed for %s: %v", j.SourceIndex, err)
-	} else {
-		j.Status = "completed"
-		j.Logs = append(j.Logs, fmt.Sprintf("[%s] completed: %d docs (scroll+bulk)", time.Now().Format("15:04:05"), j.Progress))
-	}
-}
-
 func (s *Server) runScrollMigration(ctx context.Context, j *migrateJob) error {
 	src := s.Source
 	dst := s.Target
 	if j.Direction == "target->source" {
 		src, dst = s.Target, s.Source
 	}
+	return copyDocuments(ctx, src, dst, j)
+}
+
+func copyDocuments(ctx context.Context, src, dst *elastic.Client, j *migrateJob) error {
 	ctx, cancel := context.WithCancel(ctx)
 	docCh, errCh := src.ScrollAll(ctx, j.SourceIndex, 1000, j.Query)
 	defer func() {
@@ -668,11 +761,64 @@ func (s *Server) validateClusters(ctx context.Context, saved *ActiveMigration) (
 	if src.ClusterUUID == "" || dst.ClusterUUID == "" || src.ClusterUUID == "_na_" || dst.ClusterUUID == "_na_" {
 		return nil, nil, fmt.Errorf("both cluster UUIDs must be known before migrating")
 	}
-	if src.ClusterUUID == dst.ClusterUUID {
-		return nil, nil, fmt.Errorf("source and destination are the same cluster; migration would delete source data")
+
+	if err := elastic.ValidateMigrationVersions(src.Version, dst.Version); err != nil {
+		return nil, nil, err
 	}
 	if saved != nil && (src.ClusterUUID != saved.Source.ClusterUUID || dst.ClusterUUID != saved.Dest.ClusterUUID) {
 		return nil, nil, fmt.Errorf("connected clusters do not match the saved migration; reconnect the original source and destination")
 	}
 	return src, dst, nil
+}
+
+func jobLog(j *migrateJob, format string, args ...any) {
+	migrateMu.Lock()
+	defer migrateMu.Unlock()
+	j.Logs = append(j.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), fmt.Sprintf(format, args...)))
+}
+
+func migrationIndexUUID(ctx context.Context, client *elastic.Client, name string) (string, error) {
+	detail, err := client.GetIndexDetail(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	settings, _ := detail.Settings["index"].(map[string]any)
+	uuid, _ := settings["uuid"].(string)
+	if uuid == "" {
+		return "", fmt.Errorf("destination %s has no index UUID; cannot checkpoint ownership", name)
+	}
+	return uuid, nil
+}
+
+func pollMigrationTask(ctx context.Context, dst *elastic.Client, j *migrateJob) (*elastic.MigrationTask, error) {
+	taskID := j.TaskID
+	for {
+		task, err := dst.GetTaskStatus(ctx, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot verify native task %s; Continue will reconnect when the cluster is available: %w", taskID, err)
+		}
+		migrateMu.Lock()
+		j.Progress, j.Total = task.Created+task.Updated+task.Deleted, task.Total
+		if task.Status != "running" {
+			j.TaskID = ""
+		}
+		// Completion is only recorded after independent verification.
+		migrateMu.Unlock()
+		if task.Status != "running" {
+			jobLog(j, "native reindex %s: %d/%d docs", task.Status, j.Progress, j.Total)
+			return task, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func checkpointTarget(idx IndexState) string {
+	if idx.TargetIndex != "" {
+		return idx.TargetIndex
+	}
+	return idx.Name
 }

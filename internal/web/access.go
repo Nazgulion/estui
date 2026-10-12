@@ -5,6 +5,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"strings"
 )
 
 // The dashboard is a local administration tool. Host validation also prevents
@@ -38,6 +39,23 @@ func localRequests(port int, next http.Handler) http.Handler {
 
 func (s *Server) connectionRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			s.operationMu.Lock()
+			defer s.operationMu.Unlock()
+			if err := s.recoverPreview(); err != nil {
+				httpJSON(w, 409, map[string]string{"error": err.Error()})
+				return
+			}
+			if strings.HasPrefix(r.URL.Path, "/api/indices/") || r.URL.Path == "/api/preview-query" {
+				migrateMu.Lock()
+				busy := migrateActive || GetState().Active != nil
+				migrateMu.Unlock()
+				if busy {
+					httpJSON(w, 409, map[string]string{"error": "index actions and previews are blocked until the migration is resolved"})
+					return
+				}
+			}
+		}
 		switch r.URL.Path {
 		case "/api/connect", "/api/test-source", "/api/test-dest":
 			s.connectionMu.Lock()
@@ -55,4 +73,16 @@ func (s *Server) connectionRequests(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func validateIndexNames(names []string) error {
+	if len(names) == 0 {
+		return fmt.Errorf("no indices provided")
+	}
+	for _, name := range names {
+		if name == "" || name == "_all" || strings.ContainsAny(name, "*?,/\\<> ") {
+			return fmt.Errorf("an exact index name is required: %q", name)
+		}
+	}
+	return nil
 }

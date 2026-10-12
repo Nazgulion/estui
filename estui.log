@@ -4405,3 +4405,96 @@
 2026/09/21 10:25:12 [INFO] [elastic] connected to local-target at [http://localhost:9201]
 2026/09/21 10:25:12 [INFO] [app] connected to target: local-target
 2026/09/21 10:25:12 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/09/28 15:06:25 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/28 15:06:25 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/28 15:06:25 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/28 15:06:25 [INFO] [app] connected to source: local-source
+2026/09/28 15:06:25 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/28 15:06:25 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/28 15:06:25 [INFO] [app] connected to target: local-target
+2026/09/28 15:06:25 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/09/28 15:07:12 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/28 15:07:12 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/28 15:07:13 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/28 15:07:13 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/28 15:07:31 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/09/28 15:07:31 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/09/28 15:07:47 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/09/28 15:07:47 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/09/28 15:25:28 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/09/28 15:25:28 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/28 15:25:28 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/28 15:25:28 [INFO] [app] connected to source: local-source
+2026/09/28 15:25:28 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/28 15:25:28 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/28 15:25:28 [INFO] [app] connected to target: local-target
+2026/09/28 15:25:28 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/09/28 15:25:41 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/09/28 15:25:41 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/09/28 15:25:42 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/28 15:25:42 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/28 15:25:52 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/09/28 15:25:52 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/09/28 15:26:17 [DEBUG] [elastic] creating client for  on [http://localhost:9200]
+2026/09/28 15:26:17 [INFO] [elastic] connected to  at [http://localhost:9200]
+2026/09/28 20:59:52 [DEBUG] [elastic] creating client for  on [https://proxy.ast.local:45392]
+2026/10/12 16:49:56 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/10/12 16:49:56 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 16:49:56 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 16:49:56 [INFO] [app] connected to source: local-source
+2026/10/12 16:49:56 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/10/12 16:49:56 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/10/12 16:49:56 [INFO] [app] connected to target: local-target
+2026/10/12 16:49:56 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/10/12 17:30:29 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 17:48:38 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 17:48:38 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 17:50:09 [DEBUG] [elastic] creating client for  on [https://threats.eu.ast.co.rs:9200]
+2026/10/12 18:01:47 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/10/12 18:01:47 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 18:01:47 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 18:01:47 [INFO] [app] connected to source: local-source
+2026/10/12 18:01:47 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/10/12 18:01:47 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/10/12 18:01:47 [INFO] [app] connected to target: local-target
+2026/10/12 18:01:47 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/10/12 18:01:57 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 18:01:57 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 18:02:00 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 18:02:00 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 18:02:19 [DEBUG] [elastic] creating client for  on [http://threats.eu.ast.co.rs:9200]
+2026/10/12 18:02:19 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]
+2026/10/12 18:23:07 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/10/12 18:23:07 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 18:23:07 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 18:23:07 [INFO] [app] connected to source: local-source
+2026/10/12 18:23:07 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/10/12 18:23:07 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/10/12 18:23:07 [INFO] [app] connected to target: local-target
+2026/10/12 18:23:07 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/10/12 18:23:38 [DEBUG] [elastic] creating client for  on [http://threats.eu.ast.co.rs:9200]
+2026/10/12 18:23:38 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]
+2026/10/12 20:38:36 [DEBUG] [elastic] creating client for  on [http://threats.eu.ast.co.rs:9200]
+2026/10/12 20:38:37 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]
+2026/10/12 20:38:43 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 20:38:43 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 20:58:25 [DEBUG] [elastic] creating client for  on [http://localhost:9202]
+2026/10/12 20:58:25 [INFO] [elastic] connected to  at [http://localhost:9202]
+2026/10/12 21:06:45 [DEBUG] [elastic] creating client for  on [http://localhost:9203]
+2026/10/12 21:06:45 [INFO] [elastic] connected to  at [http://localhost:9203]
+2026/10/12 21:29:37 [DEBUG] [elastic] creating client for  on [http://localhost:9203]
+2026/10/12 21:29:37 [INFO] [elastic] connected to  at [http://localhost:9203]
+2026/10/12 21:29:38 [DEBUG] [elastic] creating client for  on [http://threats.eu.ast.co.rs:9200]
+2026/10/12 21:29:38 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]
+2026/10/12 21:29:55 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/10/12 21:29:55 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/12 21:29:55 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/12 21:29:55 [INFO] [app] connected to source: local-source
+2026/10/12 21:29:55 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/10/12 21:29:55 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/10/12 21:29:55 [INFO] [app] connected to target: local-target
+2026/10/12 21:29:55 [INFO] [web] starting server on http://127.0.0.1:8082
+2026/10/12 21:30:36 [DEBUG] [elastic] creating client for  on [http://localhost:9203]
+2026/10/12 21:30:36 [INFO] [elastic] connected to  at [http://localhost:9203]
+2026/10/12 21:30:57 [DEBUG] [elastic] creating client for  on [http://threats.eu.ast.co.rs:9200]
+2026/10/12 21:30:57 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]

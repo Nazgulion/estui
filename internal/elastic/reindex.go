@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,7 @@ var readOnlySettings = map[string]bool{
 	"version":               true,
 	"routing_num_shards":    true,
 	"verified_before_close": true,
+	"verified_read_only":    true,
 	"store":                 true,
 	"history":               true,
 	"history.uuid":          true,
@@ -43,27 +45,28 @@ func stripReadOnly(settings map[string]any) map[string]any {
 	if idx, ok := settings["index"].(map[string]any); ok {
 		cleaned := make(map[string]any)
 		for k, v := range idx {
-			if !readOnlySettings[k] {
+			if !readOnlySettings[k] && k != "lifecycle" && !strings.HasPrefix(k, "lifecycle.") && k != "blocks" && !strings.HasPrefix(k, "blocks.") && k != "default_pipeline" && k != "final_pipeline" {
 				cleaned[k] = v
 			}
 		}
+		cleaned["default_pipeline"] = "_none"
+		cleaned["final_pipeline"] = "_none"
+		cleaned["blocks.write"] = false
+		cleaned["blocks.read_only"] = false
+		cleaned["blocks.read_only_allow_delete"] = false
 		return map[string]any{"index": cleaned}
 	}
-	return settings
+	return map[string]any{"index": map[string]any{"default_pipeline": "_none", "final_pipeline": "_none"}}
 }
 
 func (c *Client) CreateIndexFromSource(ctx context.Context, name string, detail *IndexDetail) error {
 	body := map[string]any{}
 
-	if detail.Settings != nil {
-		body["settings"] = stripReadOnly(detail.Settings)
-	}
+	body["settings"] = stripReadOnly(detail.Settings)
 	if detail.Mappings != nil {
 		body["mappings"] = detail.Mappings
 	}
-	if detail.Aliases != nil {
-		body["aliases"] = detail.Aliases
-	}
+	// Aliases are intentionally withheld; publishing a copy is a separate operation.
 
 	raw, err := json.Marshal(body)
 	if err != nil {
