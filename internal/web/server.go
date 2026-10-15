@@ -247,17 +247,23 @@ func (s *Server) handleTargetDetail(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleClusters(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	source, err := s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0])
-	if err != nil {
-		httpJSON(w, 502, map[string]string{"error": err.Error()})
-		return
+	// Report each connection independently; an offline destination must not hide
+	// a healthy source or prevent source-only index administration.
+	var source, target *elastic.ClusterInfo
+	var sourceErr, targetErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); source, sourceErr = s.Source.GetClusterInfo(ctx, s.SourceCfg.Hosts[0]) }()
+	go func() { defer wg.Done(); target, targetErr = s.Target.GetClusterInfo(ctx, s.TargetCfg.Hosts[0]) }()
+	wg.Wait()
+	errs := map[string]string{}
+	if sourceErr != nil {
+		errs["source"] = sourceErr.Error()
 	}
-	target, err := s.Target.GetClusterInfo(ctx, s.TargetCfg.Hosts[0])
-	if err != nil {
-		httpJSON(w, 502, map[string]string{"error": err.Error()})
-		return
+	if targetErr != nil {
+		errs["target"] = targetErr.Error()
 	}
-	httpJSON(w, 200, map[string]any{"source": source, "target": target})
+	httpJSON(w, 200, map[string]any{"source": source, "target": target, "errors": errs})
 }
 
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {

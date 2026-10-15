@@ -20,6 +20,7 @@ import (
 )
 
 type fakeCluster struct {
+	failInfo                                    bool
 	afterSearch                                 func()
 	failSettings, unackSettings, ignoreSettings bool
 	unblockedSearch, unblockWhileOpen           bool
@@ -64,6 +65,11 @@ func (f *fakeCluster) serve(w http.ResponseWriter, r *http.Request) {
 	write := func(v any) { _ = json.NewEncoder(w).Encode(v) }
 	switch {
 	case path == "/":
+		if f.failInfo {
+			w.WriteHeader(503)
+			write(map[string]string{"error": "offline"})
+			return
+		}
 		version := f.version
 		if version == "" {
 			version = "8.19.7"

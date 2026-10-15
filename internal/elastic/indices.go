@@ -162,13 +162,22 @@ func (c *Client) Count(ctx context.Context, name string) (int64, error) {
 		return 0, fmt.Errorf("read count: %w", err)
 	}
 
+	if resp.IsError() {
+		return 0, fmt.Errorf("count %s failed (status %d): %s", name, resp.StatusCode, body)
+	}
 	var result struct {
-		Count int64 `json:"count"`
+		Count  *int64 `json:"count"`
+		Shards struct {
+			Failed int `json:"failed"`
+		} `json:"_shards"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return 0, fmt.Errorf("parse count: %w", err)
 	}
-	return result.Count, nil
+	if result.Count == nil || *result.Count < 0 || result.Shards.Failed != 0 {
+		return 0, fmt.Errorf("count %s returned an invalid or incomplete result", name)
+	}
+	return *result.Count, nil
 }
 
 func (c *Client) OpenIndex(ctx context.Context, name string) error {
@@ -280,57 +289,51 @@ func (c *Client) GetDiskStats(ctx context.Context) (*DiskStats, error) {
 		return nil, fmt.Errorf("read cluster stats: %w", err)
 	}
 
+	if resp.IsError() {
+		return nil, fmt.Errorf("cluster stats failed (status %d): %s", resp.StatusCode, body)
+	}
 	var stats struct {
+		ResponseNodes struct {
+			Failed int `json:"failed"`
+		} `json:"_nodes"`
 		Nodes struct {
 			FS struct {
-				TotalInBytes     int64 `json:"total_in_bytes"`
-				AvailableInBytes int64 `json:"available_in_bytes"`
+				Total     *int64 `json:"total_in_bytes"`
+				Available *int64 `json:"available_in_bytes"`
 			} `json:"fs"`
 		} `json:"nodes"`
 	}
 	if err := json.Unmarshal(body, &stats); err != nil {
 		return nil, fmt.Errorf("parse cluster stats: %w", err)
 	}
-
-	ds := &DiskStats{
-		TotalBytes:     stats.Nodes.FS.TotalInBytes,
-		AvailableBytes: stats.Nodes.FS.AvailableInBytes,
-		TotalHuman:     formatBytes(stats.Nodes.FS.TotalInBytes),
-		AvailableHuman: formatBytes(stats.Nodes.FS.AvailableInBytes),
+	total, available := stats.Nodes.FS.Total, stats.Nodes.FS.Available
+	if stats.ResponseNodes.Failed != 0 || total == nil || available == nil || *total <= 0 || *available < 0 || *available > *total {
+		return nil, fmt.Errorf("cluster stats returned incomplete or invalid disk capacity")
 	}
-	if ds.TotalBytes > 0 {
-		ds.UsedPercent = int(float64(ds.TotalBytes-ds.AvailableBytes) / float64(ds.TotalBytes) * 100)
+	ds := &DiskStats{TotalBytes: *total, AvailableBytes: *available, TotalHuman: formatBytes(*total), AvailableHuman: formatBytes(*available), UsedPercent: int(float64(*total-*available) / float64(*total) * 100)}
+	settingsResp, err := c.es.Cluster.GetSettings(c.es.Cluster.GetSettings.WithContext(ctx), c.es.Cluster.GetSettings.WithIncludeDefaults(true))
+	if err != nil {
+		return ds, nil
+	} // Capacity remains useful if settings cannot be read.
+	defer settingsResp.Body.Close()
+	if settingsResp.IsError() {
+		return ds, nil
 	}
-
-	settingsResp, err := c.es.Cluster.GetSettings(
-		c.es.Cluster.GetSettings.WithContext(ctx),
-		c.es.Cluster.GetSettings.WithIncludeDefaults(true),
-	)
-	if err == nil {
-		defer settingsResp.Body.Close()
-		settingsBody, _ := io.ReadAll(settingsResp.Body)
-		var s struct {
-			Defaults struct {
-				Cluster struct {
-					Routing struct {
-						Allocation struct {
-							Disk struct {
-								Watermark struct {
-									Low        string `json:"low"`
-									High       string `json:"high"`
-									FloodStage string `json:"flood_stage"`
-								} `json:"watermark"`
-							} `json:"disk"`
-						} `json:"allocation"`
-					} `json:"routing"`
-				} `json:"cluster"`
-			} `json:"defaults"`
+	var settings map[string]map[string]any
+	if err := json.NewDecoder(settingsResp.Body).Decode(&settings); err != nil {
+		return ds, nil
+	}
+	watermark := func(key string) string {
+		for _, layer := range []string{"transient", "persistent", "defaults"} {
+			// Setting supports nested as well as flat setting keys.
+			value := Setting(&IndexDetail{Settings: map[string]any{"index": settings[layer]}}, "cluster.routing.allocation.disk.watermark."+key)
+			if value != nil {
+				return fmt.Sprint(value)
+			}
 		}
-		json.Unmarshal(settingsBody, &s)
-		ds.WatermarkLow = s.Defaults.Cluster.Routing.Allocation.Disk.Watermark.Low
-		ds.WatermarkHigh = s.Defaults.Cluster.Routing.Allocation.Disk.Watermark.High
-		ds.WatermarkFlood = s.Defaults.Cluster.Routing.Allocation.Disk.Watermark.FloodStage
+		return ""
 	}
+	ds.WatermarkLow, ds.WatermarkHigh, ds.WatermarkFlood = watermark("low"), watermark("high"), watermark("flood_stage")
 
 	return ds, nil
 }

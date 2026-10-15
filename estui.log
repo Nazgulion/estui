@@ -4556,3 +4556,11 @@
 2026/10/15 10:55:19 [INFO] [elastic] connected to  at [http://threats.eu.ast.co.rs:9200]
 2026/10/15 10:58:17 [DEBUG] [elastic] creating client for  on [http://threats.rs.ast.co.rs:9200]
 2026/10/15 10:58:17 [INFO] [elastic] connected to  at [http://threats.rs.ast.co.rs:9200]
+2026/10/15 14:48:10 [INFO] [app] starting estui web on port 8082 (log: estui.log, level: debug)
+2026/10/15 14:48:10 [DEBUG] [elastic] creating client for local-source on [http://localhost:9200]
+2026/10/15 14:48:10 [INFO] [elastic] connected to local-source at [http://localhost:9200]
+2026/10/15 14:48:10 [INFO] [app] connected to source: local-source
+2026/10/15 14:48:10 [DEBUG] [elastic] creating client for local-target on [http://localhost:9201]
+2026/10/15 14:48:10 [INFO] [elastic] connected to local-target at [http://localhost:9201]
+2026/10/15 14:48:10 [INFO] [app] connected to target: local-target
+2026/10/15 14:48:10 [INFO] [web] starting server on http://127.0.0.1:8082

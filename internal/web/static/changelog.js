@@ -2,6 +2,18 @@
 // Keep entries about user-visible changes; do not invent historical release dates.
 const ESTUI_RELEASES = [
   {
+    version: '3.1.1',
+    date: '2026-10-15',
+    summary: 'Recovery and cluster-selection fixes',
+    changes: [
+      ['Fixed', 'Abandon restores temporarily opened sources before discarding recovery state. Connection, identity or restoration failures keep the checkpoint available.'],
+      ['Fixed', 'Migration selects indices only on the source side. Changing direction or tabs clears selections to prevent applying actions on the wrong cluster. Indices named constructor can be selected normally.'],
+      ['Fixed', 'Reverse migration preview uses the selected indices on Node B, and history shows the correct host direction.'],
+      ['Fixed', 'An unavailable destination no longer hides a healthy source in the Indices tab.'],
+      ['Fixed', 'Invalid or partial document counts and disk statistics are rejected. Disk watermarks reflect configured overrides.']
+    ]
+  },
+  {
     version: '3.1.0',
     date: '2026-10-15',
     summary: 'Live copies and easier index browsing',

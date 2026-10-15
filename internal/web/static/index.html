@@ -127,7 +127,7 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 <script src="/remap.js"></script>
 <script src="/pagination.js"></script>
 <script>
-var S={tab:'indices',source:[],target:[],selected:{},dir:'source->target',jobs:[],migrating:false,
+var S={tab:'indices',source:[],target:[],selected:Object.create(null),dir:'source->target',jobs:[],migrating:false,
   indicesFilter:'',migrationFilter:'',targetFilter:'',disk:null,state:null,srcOK:false,tgtOK:false,srcInfo:null,tgtInfo:null,compat:null,query:'',desc:'',
   srcHost:'',tgtHost:'',
   nodeATag:'',nodeBTag:'',statusMsg:'',proxyMode:false};
@@ -139,9 +139,16 @@ function H(h){return '<span class="health-dot '+h+'">'+h+'</span>'}
 function L(s){return s==='open'?'<span class="status-open">open</span>':'<span class="status-close">close</span>'}
 function Q(list,q){if(!q)return list;try{var re=new RegExp(q,'i');return list.filter(function(i){return re.test(i.name)})}catch(e){return list}}
 async function loadAll(){
-  try{var c=await GET('/api/clusters');S.srcHost=c.source.host;S.tgtHost=c.target.host;S.srcInfo=c.source;S.tgtInfo=c.target;S.srcOK=true;S.tgtOK=true}catch(e){S.srcOK=false;S.tgtOK=false;S.srcInfo=null;S.tgtInfo=null;S.source=[];S.target=[];return}
-  try{var s=await GET('/api/indices/source');S.source=Array.isArray(s)?s:[];if(S.source.length>0)S.srcOK=true}catch(e){S.source=[];S.srcOK=false;S.srcInfo=null}
-  try{var t=await GET('/api/indices/target');S.target=Array.isArray(t)?t:[]}catch(e){S.target=[];S.tgtOK=false;S.tgtInfo=null}
+  try{
+    var c=await GET('/api/clusters');
+    var changed=(S.srcInfo&&c.source&&S.srcInfo.cluster_uuid!==c.source.cluster_uuid)||(S.tgtInfo&&c.target&&S.tgtInfo.cluster_uuid!==c.target.cluster_uuid);
+    if(changed)S.selected=Object.create(null);
+    if(c.source)S.srcHost=c.source.host;
+    if(c.target)S.tgtHost=c.target.host;
+    S.srcInfo=c.source||null;S.tgtInfo=c.target||null;S.srcOK=!!c.source;S.tgtOK=!!c.target;
+  }catch(e){S.srcOK=false;S.tgtOK=false;S.srcInfo=null;S.tgtInfo=null;S.source=[];S.target=[];return}
+  if(S.srcOK){try{var s=await GET('/api/indices/source');S.source=Array.isArray(s)?s:[]}catch(e){S.source=[];S.srcOK=false}}else S.source=[];
+  if(S.tgtOK){try{var t=await GET('/api/indices/target');S.target=Array.isArray(t)?t:[]}catch(e){S.target=[];S.tgtOK=false}}else S.target=[];
   try{S.disk=await GET('/api/disk')}catch(e){S.disk=null}
   try{S.state=await GET('/api/migrate/state')}catch(e){}}
 async function loadJobs(){try{var d=await GET('/api/migrate/status');S.jobs=d.jobs||[];S.migrating=d.active||false}catch(e){}}
@@ -151,7 +158,7 @@ async function testSource(){
   var btn=document.getElementById('test-src-btn'),dot=document.getElementById('src-dot');
   btn.textContent='...';btn.disabled=true;dot.className='dot testing';
   try{var r=await POST('/api/test-source',{host:host});
-    if(r.ok){S.selected={};S.srcOK=true;S.srcInfo=r.info;dot.className='dot ok'}
+    if(r.ok){S.selected=Object.create(null);S.srcOK=true;S.srcInfo=r.info;dot.className='dot ok'}
     else {S.srcOK=false;dot.className='dot err';alert('Source: '+r.error)}}
   catch(e){S.srcOK=false;dot.className='dot err';alert('Source failed: '+e)}
   btn.textContent='Test';btn.disabled=false;await loadAll();updateView()}
@@ -161,11 +168,11 @@ async function testDest(){
   var btn=document.getElementById('test-tgt-btn'),dot=document.getElementById('tgt-dot');
   btn.textContent='...';btn.disabled=true;dot.className='dot testing';
   try{var r=await POST('/api/test-dest',{host:host});
-    if(r.ok){S.selected={};S.tgtOK=true;S.tgtInfo=r.info;dot.className='dot ok'}
+    if(r.ok){S.selected=Object.create(null);S.tgtOK=true;S.tgtInfo=r.info;dot.className='dot ok'}
     else {S.tgtOK=false;dot.className='dot err';alert('Dest: '+r.error)}}
   catch(e){S.tgtOK=false;dot.className='dot err';alert('Dest failed: '+e)}
   btn.textContent='Test';btn.disabled=false;await loadAll();updateView()}
-function doFlip(){S.dir=S.dir==='source->target'?'target->source':'source->target';updateView()}
+function doFlip(){S.selected=Object.create(null);S.dir=S.dir==='source->target'?'target->source':'source->target';updateView()}
 function tagA(){var tag=S.nodeATag||'';var name=S.srcInfo&&S.srcInfo.cluster_name||'Node A';return tag?tag+' \u2014 '+name:name}
 function tagB(){var tag=S.nodeBTag||'';var name=S.tgtInfo&&S.tgtInfo.cluster_name||'Node B';return tag?tag+' \u2014 '+name:name}
 // ==== Indices Tab ====
@@ -329,7 +336,7 @@ function renderMigration(){
       h+='<div class="conn-row">\uD83D\uDD0D';
       h+='<input id="mig-query" class="search-box" placeholder="Lucene query (empty = all docs)" value="'+E(S.query||'')+'" oninput="S.query=this.value" style="flex:1;max-width:400px">';
       h+='<select id="preview-idx" class="search-box" style="width:160px;flex:none"><option value="">-- pick index --</option>';
-      ls.forEach(function(i){if(S.selected[i.name])h+='<option value="'+E(i.name)+'">'+E(i.name)+'</option>';});
+      (S.dir==='target->source'?S.target:S.source).forEach(function(i){if(S.selected[i.name])h+='<option value="'+E(i.name)+'">'+E(i.name)+'</option>';});
       h+='</select>';
       h+='<button class="btn btn-sm" onclick="previewQuery()">Preview</button>';
       h+='<span id="preview-result" style="font-size:11px;color:var(--muted-fg)"></span>';
@@ -340,26 +347,26 @@ function renderMigration(){
       h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
       h+='<input id="mig-search-src" class="search-box" placeholder="/regex..." value="'+E(S.migrationFilter||'')+'" oninput="setIndexFilter(\'source\',this.value)" style="flex:1">';
       h+='<span style="font-size:12px;color:var(--muted-fg);white-space:nowrap;min-width:44px">'+ls.length+'/'+S.source.length+'</span>';
-      h+='<button class="btn btn-sm" data-click="mig-all-src" title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-src" title="Clear matching selections across all pages">Clear matches</button></div>';
+      h+='<button class="btn btn-sm" data-click="mig-all-src" '+(S.dir==='source->target'?'':'disabled')+' title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-src" '+(S.dir==='source->target'?'':'disabled')+' title="Clear matching selections across all pages">Clear matches</button></div>';
       h+=indexPager('source',lp);
       if(ls.length===0)h+='<div class="card-body empty">'+(S.source.length?'No matching indices':'No indices')+'</div>';
       else{h+='<div class="card-body" id="source-rows"><table><thead><tr>';
       h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Created (UTC)</th><th>Status</th></tr></thead><tbody>';
-      lp.rows.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
+      lp.rows.forEach(function(idx){var selectable=S.dir==='source->target',is=selectable&&S.selected[idx.name];
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-side="source" aria-disabled="'+(!selectable)+'" title="'+(selectable?'Select source index':'Flip direction to select indices from this cluster')+'" data-name="'+E(idx.name)+'"><td>'+(selectable?(is?'\u2714':'\u2B1C'):'—')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='<div class="panel"><div class="card"><div class="card-header">'+E(tagB())+'</div>';
       h+='<div style="padding:4px 14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
       h+='<input id="mig-search-tgt" class="search-box" placeholder="/regex..." value="'+E(S.targetFilter||'')+'" oninput="setIndexFilter(\'target\',this.value)" style="flex:1">';
       h+='<span style="font-size:12px;color:var(--muted-fg);white-space:nowrap;min-width:44px">'+rs.length+'/'+S.target.length+'</span>';
-      h+='<button class="btn btn-sm" data-click="mig-all-tgt" title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-tgt" title="Clear matching selections across all pages">Clear matches</button></div>';
+      h+='<button class="btn btn-sm" data-click="mig-all-tgt" '+(S.dir==='target->source'?'':'disabled')+' title="Select every matching index across all pages">All matches</button><button class="btn btn-sm btn-danger" data-click="mig-none-tgt" '+(S.dir==='target->source'?'':'disabled')+' title="Clear matching selections across all pages">Clear matches</button></div>';
       h+=indexPager('target',rp);
       if(rs.length===0)h+='<div class="card-body empty">'+(S.target.length?'No matching indices':'No indices')+'</div>';
       else{h+='<div class="card-body" id="target-rows"><table><thead><tr>';
       h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Created (UTC)</th><th>Status</th></tr></thead><tbody>';
-      rp.rows.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
+      rp.rows.forEach(function(idx){var selectable=S.dir==='target->source',is=selectable&&S.selected[idx.name];
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-side="target" aria-disabled="'+(!selectable)+'" title="'+(selectable?'Select source index':'Flip direction to select indices from this cluster')+'" data-name="'+E(idx.name)+'"><td>'+(selectable?(is?'\u2714':'\u2B1C'):'—')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='</div>';
@@ -391,7 +398,7 @@ function renderMigration(){
         }
       }
       h+='<div class="hist-card"><div class="hc-desc">'+E(hi.description||'Migration')+dirText+'</div>';
-      h+='<div class="hc-detail">'+E(hi.source.host)+' \u2192 '+E(hi.dest.host)+' \u00b7 Completed: '+new Date(hi.completed_at).toLocaleString()+dur+' \u00b7 '+hi.indices.length+' indices</div>';
+      h+='<div class="hc-detail">'+E(hi.direction==='target->source'?hi.dest.host:hi.source.host)+' \u2192 '+E(hi.direction==='target->source'?hi.source.host:hi.dest.host)+' \u00b7 Completed: '+new Date(hi.completed_at).toLocaleString()+dur+' \u00b7 '+hi.indices.length+' indices</div>';
       if(hi.allow_live_source)h+='<div class="live-summary">Live copy: original source retained; closed sources temporarily opened and restored. Verification covers captured documents only, not later source changes.</div>';
       h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--muted);outline:none">Show indices</summary><div style="font-size:11px;color:var(--muted-fg);max-height:120px;overflow-y:auto;padding:4px 0">';
       hi.indices.forEach(function(idx){
@@ -434,11 +441,11 @@ document.getElementById('main').addEventListener('click',function(e){
   else if(cmd==='idx-delete'){showConfirm('delete',Object.keys(S.selected),function(){runBulk('delete')})}
   else if(cmd==='idx-open'){showConfirm('open',Object.keys(S.selected),function(){runBulk('open')})}
   else if(cmd==='idx-close'){showConfirm('close',Object.keys(S.selected),function(){runBulk('close')})}
-  else if(cmd==='mig'){if(S.selected[name]){delete S.selected[name]}else{S.selected[name]=true};renderMigration()}
-  else if(cmd==='mig-all-src'){Q(S.source,S.migrationFilter||'').forEach(function(i){S.selected[i.name]=true});renderMigration()}
-  else if(cmd==='mig-none-src'){Q(S.source,S.migrationFilter||'').forEach(function(i){delete S.selected[i.name]});renderMigration()}
-  else if(cmd==='mig-all-tgt'){Q(S.target,S.targetFilter||'').forEach(function(i){S.selected[i.name]=true});renderMigration()}
-  else if(cmd==='mig-none-tgt'){Q(S.target,S.targetFilter||'').forEach(function(i){delete S.selected[i.name]});renderMigration()}
+  else if(cmd==='mig'&&el.dataset.side===(S.dir==='target->source'?'target':'source')){if(S.selected[name]){delete S.selected[name]}else{S.selected[name]=true};renderMigration()}
+  else if(cmd==='mig-all-src'&&S.dir==='source->target'){Q(S.source,S.migrationFilter||'').forEach(function(i){S.selected[i.name]=true});renderMigration()}
+  else if(cmd==='mig-none-src'&&S.dir==='source->target'){Q(S.source,S.migrationFilter||'').forEach(function(i){delete S.selected[i.name]});renderMigration()}
+  else if(cmd==='mig-all-tgt'&&S.dir==='target->source'){Q(S.target,S.targetFilter||'').forEach(function(i){S.selected[i.name]=true});renderMigration()}
+  else if(cmd==='mig-none-tgt'&&S.dir==='target->source'){Q(S.target,S.targetFilter||'').forEach(function(i){delete S.selected[i.name]});renderMigration()}
   else if(cmd==='mig-start'){startMigrate()}
   else if(cmd==='mig-remap'){startRemap()}
 });
@@ -457,8 +464,8 @@ async function previewQuery(){
 }
 async function doMigrate(indices,desc,choice,intent){
   intent=intent||{direction:S.dir,query:S.query,source_uuid:S.srcInfo&&S.srcInfo.cluster_uuid,target_uuid:S.tgtInfo&&S.tgtInfo.cluster_uuid,overwrite_uuids:{}};
-  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,collision_action:choice,overwrite_uuids:choice==='overwrite'?intent.overwrite_uuids:{},query:intent.query,direction:intent.direction,source_uuid:intent.source_uuid,target_uuid:intent.target_uuid,force_scroll:true,allow_live_source:!!intent.allow_live_source})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected={}}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
-async function doContinue(){var live=document.getElementById('continue-live-source');try{await POST('/api/migrate/continue',{allow_live_source:!!(live&&live.checked)});S.selected={};S.continueLiveSource=false}catch(e){alert('Error: '+e)};renderMigration()}
+  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,collision_action:choice,overwrite_uuids:choice==='overwrite'?intent.overwrite_uuids:{},query:intent.query,direction:intent.direction,source_uuid:intent.source_uuid,target_uuid:intent.target_uuid,force_scroll:true,allow_live_source:!!intent.allow_live_source})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected=Object.create(null)}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
+async function doContinue(){var live=document.getElementById('continue-live-source');try{await POST('/api/migrate/continue',{allow_live_source:!!(live&&live.checked)});S.selected=Object.create(null);S.continueLiveSource=false}catch(e){alert('Error: '+e)};renderMigration()}
 async function doAbandon(){if(!window.confirm('Abandon?'))return;try{await POST('/api/migrate/abandon',{});S.state=await GET('/api/migrate/state')}catch(e){alert('Error: '+e)};renderMigration()}
 async function checkCompat(){try{S.compat=await GET('/api/check-compat')}catch(e){S.compat=null};renderMigration()}
 function swapRoles(){var sh=document.getElementById('src-host'),th=document.getElementById('tgt-host'),tmp=S.srcHost;S.srcHost=S.tgtHost;S.tgtHost=tmp;sh.value=S.srcHost;th.value=S.tgtHost;S.srcOK=false;S.tgtOK=false;Promise.all([testSource(),testDest()]).then(function(){doContinue()})}
@@ -529,7 +536,7 @@ async function runBulk(action,names,sourceUUID){
   names=names||Object.keys(S.selected);sourceUUID=sourceUUID||(S.srcInfo&&S.srcInfo.cluster_uuid);var count=names.length;
   var lbl={delete:'Deleting',open:'Opening',close:'Closing'};
   S.statusMsg='<span style="animation:blink .6s infinite alternate">\u27F3</span> '+lbl[action]+' '+count+' indices...';renderIndices();
-  try{var result=await POST('/api/indices/'+action,{indices:names,source_uuid:sourceUUID});var failed=(result.results||[]).filter(function(r){return !r.ok});if(!result.results||result.results.length!==names.length)throw new Error('Incomplete action response');S.selected={};failed.forEach(function(r){S.selected[r.index]=true});S.statusMsg=E((count-failed.length)+' succeeded, '+failed.length+' failed'+(failed.length?': '+failed.map(function(r){return r.index+': '+r.error}).join('; '):''));}catch(e){S.statusMsg='\u274C Error: '+E(String(e))}
+  try{var result=await POST('/api/indices/'+action,{indices:names,source_uuid:sourceUUID});var failed=(result.results||[]).filter(function(r){return !r.ok});if(!result.results||result.results.length!==names.length)throw new Error('Incomplete action response');S.selected=Object.create(null);failed.forEach(function(r){S.selected[r.index]=true});S.statusMsg=E((count-failed.length)+' succeeded, '+failed.length+' failed'+(failed.length?': '+failed.map(function(r){return r.index+': '+r.error}).join('; '):''));}catch(e){S.statusMsg='\u274C Error: '+E(String(e))}
   await loadAll();renderIndices();
   setTimeout(function(){S.statusMsg='';renderIndices()},3000);
 }
@@ -538,7 +545,7 @@ function updateView(){if(S.tab==='indices')renderIndices();else renderMigration(
 
 document.querySelectorAll('nav button.tab').forEach(function(b){b.addEventListener('click',function(){
   document.querySelectorAll('nav button.tab').forEach(function(x){x.classList.remove('active')});
-  this.classList.add('active');S.tab=this.dataset.tab;updateView();});});
+  this.classList.add('active');if(S.tab!==this.dataset.tab)S.selected=Object.create(null);S.tab=this.dataset.tab;updateView();});});
 async function init(){await loadAll();await loadJobs();updateView();
   setInterval(async function(){var ae=document.activeElement,ai=ae?ae.id:'';if(ae&&ae.dataset&&ae.dataset.paginationControl)return;if(ai==='src-host'||ai==='tgt-host'||ai==='mig-desc'||ai==='preview-idx'||ai==='mig-query'||ai==='nodea-tag'||ai==='nodeb-tag')return;await Promise.all([loadAll(),loadJobs()]);updateView()},3000);}
 init();

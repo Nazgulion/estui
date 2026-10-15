@@ -730,6 +730,10 @@ func (s *Server) handleMigrateAbandon(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if err := s.restoreAbandonedSources(r.Context(), previous.Active); err != nil {
+			httpJSON(w, 409, map[string]string{"error": "cannot abandon before restoring source state: " + err.Error()})
+			return
+		}
 	}
 	AbandonMigration()
 	if err := SaveState(s.StatePath); err != nil {
@@ -739,6 +743,39 @@ func (s *Server) handleMigrateAbandon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpJSON(w, 200, map[string]string{"status": "abandoned"})
+}
+
+// Abandon must not erase the only record that a source needs to be closed.
+// Restore only the recorded cluster/index identities; retain the checkpoint on
+// any failure so the operator can reconnect and retry safely.
+func (s *Server) restoreAbandonedSources(ctx context.Context, a *ActiveMigration) error {
+	src, cfg, saved := s.Source, s.SourceCfg, a.Source
+	if a.Direction == "target->source" {
+		src, cfg, saved = s.Target, s.TargetCfg, a.Dest
+	}
+	checked := false
+	for _, idx := range a.Indices {
+		if idx.Remap.SourceDeleted || idx.SourceWasClosed == nil || !*idx.SourceWasClosed {
+			continue
+		}
+		if !checked {
+			if len(cfg.Hosts) != 1 || saved.ClusterUUID == "" {
+				return fmt.Errorf("original source cluster identity is unavailable")
+			}
+			info, err := src.GetClusterInfo(ctx, cfg.Hosts[0])
+			if err != nil {
+				return err
+			}
+			if info.ClusterUUID != saved.ClusterUUID {
+				return fmt.Errorf("reconnect the original source cluster")
+			}
+			checked = true
+		}
+		if err := restoreClosed(ctx, src, idx.Name, idx.SourceUUID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleMigrateState(w http.ResponseWriter, r *http.Request) {

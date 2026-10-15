@@ -1,3 +1,31 @@
+Code review follow-up — 2026-10-15 (v3.1.1)
+
+Reviewed migration admission, transfer, verification, replacement/remap and recovery;
+Elasticsearch transport and response handling; connection and local-access handlers;
+checkpoint storage and process locking; configuration, logging and browser flows.
+Each fix below was preceded by a failing regression reproducing the bug.
+
+| Confirmed bug | Proof before fix | Result |
+| --- | --- | --- |
+| Abandon loses source restoration obligation | `TestReviewAbandonRestoresSourceOrKeepsCheckpoint`: HTTP 200 discarded state while source remained open, including failed closure and wrong identity | Restore original closed state with cluster/index UUID checks; retain checkpoint on failure |
+| Selections cross cluster/direction/tab boundaries | UI tests retained old selections on Flip and tab switch, and allowed destination-panel selection | Clear on context changes; select only the migration source |
+| Index named `constructor` cannot be selected | UI test found no own selection after clicking it | Selection dictionaries have no prototype |
+| Reverse preview uses Node A list | UI test could not find selected `b-001` in preview options | Use the selected source side in either direction |
+| Reverse history displays A → B for a B → A copy | UI test failed to find the actual host direction | History host arrow follows the saved direction |
+| Offline destination hides healthy source | `TestReviewClustersRemainIndependent` returned HTTP 502; UI also cleared healthy source | Independent connection results and source-only browsing |
+| Invalid counts accepted as successful | `TestReviewCountRejectsInvalidResults`: 403/missing count returned zero; negative and partial counts accepted | Reject HTTP errors and invalid/partial counts |
+| Invalid disk metrics reported as valid | `TestReviewDiskRejectsInvalidResults`: 403/missing fields reported 0% used; partial results accepted | Reject HTTP errors, missing/invalid capacity and failed-node results |
+| Configured watermarks ignored | `TestReviewDiskUsesEffectiveWatermarks`: returned 85%/90% instead of configured 70%/80% | Resolve transient, persistent, then default settings, including flat and nested forms |
+
+Validation passed: the full Go race suite, `go vet`, 29 JavaScript regressions,
+real-browser selection/preview/offline-cluster checks, and all 11 real Elasticsearch
+8.17 migration scenarios using disposable local indices. The binary was rebuilt.
+This review does not certify production safety or replace production-scale load,
+snapshot-restore, or dependency-vulnerability testing. Migration buffers still use
+document-count batches without a byte cap. Production clusters were not modified.
+
+---
+
 Production safety follow-up — 2026-09-28
 
 The current changes address the twelve findings from the preceding review.

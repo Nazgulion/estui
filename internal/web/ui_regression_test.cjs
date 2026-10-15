@@ -95,8 +95,8 @@ test('selections persist across pages and All matches includes off-page results'
  const h=paginationHarness();h.ctx.renderIndices();h.click('idx','a-001');h.ctx.setIndexPage('indices',2);h.click('idx','a-026');assert.deepEqual(Object.keys(h.ctx.S.selected),['a-001','a-026']);
  h.ctx.setIndexFilter('indices','^a-1');h.click('idx-all');assert.equal(Object.keys(h.ctx.S.selected).length,102);assert.equal(h.ctx.S.selected['a-199'],true);
  h.click('idx-none');assert.deepEqual(Object.keys(h.ctx.S.selected),['a-001','a-026']);
- h.ctx.renderMigration();h.ctx.setIndexFilter('target','^b-1');h.click('mig-all-tgt');assert.equal(h.ctx.S.selected['b-199'],true);assert.equal(Object.keys(h.ctx.S.selected).length,102);
- h.click('mig-none-tgt');assert.deepEqual(Object.keys(h.ctx.S.selected),['a-001','a-026']);
+ h.ctx.updateView=()=>{};h.ctx.doFlip();h.ctx.renderMigration();h.ctx.setIndexFilter('target','^b-1');h.click('mig-all-tgt');assert.equal(h.ctx.S.selected['b-199'],true);assert.equal(Object.keys(h.ctx.S.selected).length,100);
+ h.click('mig-none-tgt');assert.deepEqual(Object.keys(h.ctx.S.selected),[]);
 });
 test('refresh preserves pagination and clamps pages when index counts shrink',()=>{
  const h=paginationHarness();h.ctx.renderIndices();h.ctx.setIndexPage('indices',8);h.ctx.S.source=h.ctx.S.source.map(i=>({...i,status:'close'}));h.ctx.renderIndices();assert.equal(h.ctx.S.pages.indices.page,8);
@@ -185,3 +185,33 @@ test('Continue sends checked live consent and completed live jobs explain verifi
   assert.match(h.ctx.liveCopySummary({allow_live_source:true,status:'copied_live',source_write_blocked:false}),/temporary write block removed/);
   assert.match(h.ctx.liveCopySummary({allow_live_source:true,status:'copied_live',source_write_blocked:true}),/writes blocked/);
  });
+
+test('review: flipping migration direction clears old source selections',()=>{
+ const h=paginationHarness();h.ctx.updateView=()=>{};h.ctx.S.selected={'a-001':true};h.ctx.doFlip();
+ assert.deepEqual(Object.keys(h.ctx.S.selected),[]);
+});
+test('review: destination panel cannot select indices for the source',()=>{
+ const h=paginationHarness();h.ctx.renderMigration();h.click('mig-all-tgt');
+ assert.deepEqual(Object.keys(h.ctx.S.selected),[]);
+});
+test('review: reverse preview lists the selected source on node B',()=>{
+ const h=paginationHarness();h.ctx.S.dir='target->source';h.ctx.S.selected={'b-001':true};h.ctx.renderMigration();
+ const select=h.main.innerHTML.match(/<select id="preview-idx"[\s\S]*?<\/select>/)[0];assert.match(select,/value="b-001"/);
+});
+test('review: loading preserves node A when node B is unavailable',async()=>{
+ const h=paginationHarness();h.ctx.GET=async u=>u==='/api/clusters'?{source:{cluster_uuid:'a',host:'http://a'},target:null,errors:{target:'offline'}}:u==='/api/indices/source'?[{name:'a-001'}]:u==='/api/indices/target'?Promise.reject(Error('offline')):{};
+ await h.ctx.loadAll();assert.equal(h.ctx.S.srcOK,true);assert.equal(h.ctx.S.source.length,1);assert.equal(h.ctx.S.tgtOK,false);
+});
+test('review: switching to index actions clears migration selections',()=>{
+ const tabs=['indices','migration'].map(tab=>({dataset:{tab},classList:{add(){},remove(){}},addEventListener(_,fn){this.click=fn}}));
+ const ctx={S:{tab:'migration',dir:'target->source',selected:{test:true}},updateView(){},document:{querySelectorAll(){return tabs}}};
+ vm.createContext(ctx);vm.runInContext(part("document.querySelectorAll('nav button.tab').forEach",'async function init'),ctx);
+ tabs[0].click.call(tabs[0]);assert.deepEqual(Object.keys(ctx.S.selected),[]);
+});
+test('review: index named constructor can be selected',()=>{
+ const h=paginationHarness();h.ctx.renderIndices();h.click('idx','constructor');assert.equal(Object.hasOwn(h.ctx.S.selected,'constructor'),true);
+});
+test('review: reverse migration history shows the actual host direction',()=>{
+ const h=paginationHarness();h.ctx.S.state={history:[{direction:'target->source',source:{host:'node-a'},dest:{host:'node-b'},indices:[]}]};h.ctx.renderMigration();
+ assert.match(h.main.innerHTML,/node-b → node-a/);
+});
