@@ -20,15 +20,18 @@ import (
 )
 
 type fakeCluster struct {
-	filterQuery, filterID string
-	indexMappings         map[string]map[string]any
-	failBulkIndex         string
-	corruptBulkIndex      string
-	ignoreMapping         bool
-	indexDocs             map[string]map[string]string
-	writeBlocks           map[string]bool
-	writable              bool
-	corruptBulk           bool
+	afterSearch                                 func()
+	failSettings, unackSettings, ignoreSettings bool
+	unblockedSearch, unblockWhileOpen           bool
+	filterQuery, filterID                       string
+	indexMappings                               map[string]map[string]any
+	failBulkIndex                               string
+	corruptBulkIndex                            string
+	ignoreMapping                               bool
+	indexDocs                                   map[string]map[string]string
+	writeBlocks                                 map[string]bool
+	writable                                    bool
+	corruptBulk                                 bool
 
 	indexUUIDs     map[string]string
 	nextUUID       int
@@ -44,6 +47,7 @@ type fakeCluster struct {
 	query                                        string
 	failCreate, failDelete, failBulk, failDetail bool
 	failClone, failHealth, replaceOnHealth       bool
+	failOpen, failClose                          bool
 	cloneBody                                    string
 	reindexCode                                  int
 	taskBody                                     string
@@ -92,6 +96,28 @@ func (f *fakeCluster) serve(w http.ResponseWriter, r *http.Request) {
 		f.nextUUID++
 		f.indexUUIDs[to] = fmt.Sprintf("clone-%d", f.nextUUID)
 		write(map[string]bool{"acknowledged": true})
+	case strings.HasSuffix(path, "/_settings") && r.Method == "PUT":
+		name := nameFromPath(path)
+		var settings map[string]bool
+		if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		if f.failSettings {
+			w.WriteHeader(500)
+			write(map[string]string{"error": "settings rejected"})
+			return
+		}
+		if f.writeBlocks == nil {
+			f.writeBlocks = map[string]bool{}
+		}
+		if !settings["index.blocks.write"] && f.indices[name] {
+			f.unblockWhileOpen = true
+		}
+		if !f.ignoreSettings {
+			f.writeBlocks[name] = settings["index.blocks.write"]
+		}
+		write(map[string]bool{"acknowledged": !f.unackSettings})
 	case strings.HasSuffix(path, "/_block/write"):
 		name := strings.Split(strings.TrimPrefix(path, "/"), "/")[0]
 		if f.writeBlocks == nil {
@@ -141,6 +167,9 @@ func (f *fakeCluster) serve(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		f.query = string(raw)
 		name := strings.Split(strings.TrimPrefix(path, "/"), "/")[0]
+		if !fakeWriteBlocked(f, name) {
+			f.unblockedSearch = true
+		}
 		hits := []map[string]any{}
 		if docs, exists := f.indexDocs[name]; exists {
 			for key, value := range docs {
@@ -162,6 +191,11 @@ func (f *fakeCluster) serve(w http.ResponseWriter, r *http.Request) {
 			hits = append(hits, map[string]any{"_id": "original", "_routing": "tenant", "_source": map[string]int{"v": 1}})
 		}
 		write(map[string]any{"_scroll_id": "first", "hits": map[string]any{"hits": hits}})
+		if f.afterSearch != nil {
+			fn := f.afterSearch
+			f.afterSearch = nil
+			fn()
+		}
 	case strings.HasSuffix(path, "/_bulk"):
 		if f.blockBulkIndex != "" && path == "/"+f.blockBulkIndex+"/_bulk" {
 			// Simulate a partial transfer while the child process is still alive.
@@ -203,7 +237,19 @@ func (f *fakeCluster) serve(w http.ResponseWriter, r *http.Request) {
 		write(map[string]any{"errors": false, "items": items})
 	case strings.HasSuffix(path, "/_close"), strings.HasSuffix(path, "/_open"):
 		name := strings.Split(strings.TrimPrefix(path, "/"), "/")[0]
-		f.indices[name] = strings.HasSuffix(path, "/_open")
+		opening := strings.HasSuffix(path, "/_open")
+		if !opening && f.failClose {
+			w.WriteHeader(500)
+			write(map[string]string{"error": "close rejected"})
+			return
+		}
+		f.indices[name] = opening
+		if opening && f.failOpen {
+			// The server opened it but the client did not receive success.
+			w.WriteHeader(500)
+			write(map[string]string{"error": "open response failed"})
+			return
+		}
 		write(map[string]bool{"acknowledged": true})
 	case strings.HasPrefix(path, "/_"):
 		write(map[string]any{})
@@ -700,7 +746,7 @@ func TestMigrationCrashWorker(t *testing.T) {
 	}
 	s := New(source, target, sourceCfg.Hosts[0], targetCfg.Hosts[0], sourceCfg, targetCfg, "", log, 8080)
 	s.StatePath = os.Getenv("ESTUI_CRASH_STATE")
-	body := `{"indices":["index-1","index-2","index-3","index-4","index-5","index-6","index-7"],"overwrite":` + os.Getenv("ESTUI_CRASH_OVERWRITE") + `,"force_scroll":true}`
+	body := `{"indices":["index-1","index-2","index-3","index-4","index-5","index-6","index-7"],"overwrite":` + os.Getenv("ESTUI_CRASH_OVERWRITE") + `,"force_scroll":true,"allow_live_source":` + os.Getenv("ESTUI_CRASH_LIVE") + `}`
 	if w := call(s, "/api/migrate", body); w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
@@ -709,8 +755,9 @@ func TestMigrationCrashWorker(t *testing.T) {
 }
 
 func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
-	for _, overwrite := range []bool{true, false} {
-		t.Run(fmt.Sprintf("overwrite=%t", overwrite), func(t *testing.T) {
+	for _, mode := range []struct{ overwrite, live bool }{{true, false}, {false, false}, {false, true}} {
+		overwrite, live := mode.overwrite, mode.live
+		t.Run(fmt.Sprintf("overwrite=%t/live=%t", overwrite, live), func(t *testing.T) {
 			s, a, b := testServer(t)
 			a.mu.Lock()
 			a.indices = map[string]bool{}
@@ -718,6 +765,7 @@ func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
 				a.indices[fmt.Sprintf("index-%d", i)] = true
 			}
 			a.indices["index-4"] = false // originally closed; must survive the restart
+			a.writable = live
 			a.mu.Unlock()
 			b.mu.Lock()
 			b.blockBulkIndex = "index-4"
@@ -728,7 +776,7 @@ func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
 				"ESTUI_CRASH_WORKER=1", "ESTUI_CRASH_SOURCE="+s.SourceCfg.Hosts[0],
 				"ESTUI_CRASH_TARGET="+s.TargetCfg.Hosts[0], "ESTUI_CRASH_STATE="+s.StatePath,
 				"ESTUI_CRASH_LOG="+filepath.Join(t.TempDir(), "worker.log"),
-				fmt.Sprintf("ESTUI_CRASH_OVERWRITE=%t", overwrite))
+				fmt.Sprintf("ESTUI_CRASH_OVERWRITE=%t", overwrite), fmt.Sprintf("ESTUI_CRASH_LIVE=%t", live))
 			output, err := os.Create(filepath.Join(t.TempDir(), "worker-output.log"))
 			if err != nil {
 				t.Fatal(err)
@@ -768,6 +816,9 @@ func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
 				want := "queued"
 				if i < 3 {
 					want = "completed"
+					if live {
+						want = "copied_live"
+					}
 				}
 				if i == 3 {
 					want = "running"
@@ -797,7 +848,11 @@ func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
 				t.Fatalf("migration did not finish: %+v", saved)
 			}
 			for _, idx := range saved.History[0].Indices {
-				if idx.Status != "completed" {
+				want := "completed"
+				if live {
+					want = "copied_live"
+				}
+				if idx.Status != want {
 					t.Fatalf("unfinished index: %+v", idx)
 				}
 			}
@@ -823,6 +878,12 @@ func TestRestartContinuesAtInterruptedIndex(t *testing.T) {
 			a.mu.Lock()
 			if a.indices["index-4"] {
 				t.Error("original closed source state not restored")
+			}
+			if live {
+				assertSourceOnlyOpenedAndClosed(t, a, "index-4")
+				if fakeWriteBlocked(a, "index-4") {
+					t.Error("live source write-blocked")
+				}
 			}
 			a.mu.Unlock()
 		})

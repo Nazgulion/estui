@@ -22,7 +22,8 @@ configured Elasticsearch cluster was contacted or modified during this work.
 Additional issues addressed during the second pass:
 
 - Source UUIDs are captured when indices are queued and checked again on recovery.
-- Sources must already be write-blocked; transfers are not live replication.
+- By default, sources must already be write-blocked. Optional live copies have
+  limited verification as described below; transfers are not live replication.
 - Closed-index previews persist their restoration obligation before opening;
   restart checks cluster/index identities before closing anything.
 - Completed-index revalidation restores the checkpointed closed states even after
@@ -53,8 +54,10 @@ Behavior changes requiring operational planning:
   reissued on Continue or forgotten through Abandon. These states require manual
   reconciliation. A confirmed-deleted checkpoint resumes cloning; finalizing
   checkpoints only verify and complete cleanup.
-- Successful destinations are verified, write-blocked, and closed. Application
-  cutover and subsequently enabling writes are explicit operator actions.
+- Successful destinations are verified under a write block and closed, then
+  match the source’s captured write-block state. Older completed checkpoints
+  without this metadata retain their block. Reopening copies and application
+  cutover are explicit operator actions.
 - Ordinary same-cluster reindexing creates `reindex_<name>_<unique suffix>` and
   preserves the source. The explicit mapping workflow can remove the original
   after verified copying and the selected backup policy. Cluster UUIDs identify local copies even through different
@@ -94,6 +97,23 @@ Validation performed:
 
 Remaining release gates and limits:
 
+- Optional live-copy mode (2026-10-13) retains source mappings/settings and
+  temporarily opens closed sources, restoring their initial state on exit. It
+  verifies destination readback against the document stream captured
+  during copying and reports `copied_live`, not full current-source verification.
+  Overwrite and source backup/removal are prohibited.
+  Consent and captured fingerprints survive restart; Continue reads back the
+  destination and restores originally closed sources. A hard process stop may
+  leave a source open until restart/Continue; restoration failures are reported.
+  The UI exposes the limitation in
+  confirmation, review steps, jobs, and history. This is not live synchronization.
+  Live-copy integration tests passed on Elasticsearch 7.17.16, 8.17.0, and 9.0.0,
+  including restart/Continue and mapping changes. Mock tests also check that no
+  source-index mutations other than authorized temporary open/close are issued.
+  Closed-source live copies and mapping reindexes passed on local Elasticsearch
+  7.17.16 and 8.17.0. Failure, UUID replacement, and process-kill restart tests
+  cover restoring closed sources and surfacing restoration errors.
+
 - Repeat the opt-in integration suite on disposable clusters matching the exact
   production versions (the local runs above do not cover every minor/patch pair),
   with actual authentication/TLS, mappings, templates, and lifecycle configuration.
@@ -102,7 +122,7 @@ Remaining release gates and limits:
 - Test snapshot restoration, disk capacity, large-document behavior, throughput,
   and the extra I/O of full verification before production use. No throttling or
   live-write catch-up mechanism is provided.
-- Keep source writes blocked and external index/lifecycle/template administration
+- For full source/destination verification, keep source writes blocked and external index/lifecycle/template administration
   quiescent. Privileged external actors can change UUIDs, blocks, templates, or
   cluster routing between checks; this application cannot exclude those actors.
 - Verification compares API-visible _source documents. Source credentials need

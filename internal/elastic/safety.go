@@ -85,12 +85,22 @@ func WriteBlocked(detail *IndexDetail) bool {
 	return false
 }
 func SourceIdentity(detail *IndexDetail) (string, error) {
+	uuid, err := ReadableSourceIdentity(detail)
+	if err != nil {
+		return "", err
+	}
+	if !WriteBlocked(detail) {
+		return "", fmt.Errorf("no enforced source write block found; apply index.blocks.write or explicitly choose live copy (no write block; later writes are not synchronized)")
+	}
+	return uuid, nil
+}
+
+// ReadableSourceIdentity validates a complete readable source without requiring
+// or changing a write block. Live copies must never use this as proof of stability.
+func ReadableSourceIdentity(detail *IndexDetail) (string, error) {
 	uuid, _ := Setting(detail, "uuid").(string)
 	if uuid == "" {
 		return "", fmt.Errorf("source has no index UUID")
-	}
-	if !WriteBlocked(detail) {
-		return "", fmt.Errorf("source index must have an explicit write block before migration; stop writers and apply index.blocks.write first")
 	}
 	if source, ok := detail.Mappings["_source"].(map[string]any); ok {
 		if fmt.Sprint(source["enabled"]) == "false" || source["includes"] != nil || source["excludes"] != nil {
@@ -129,6 +139,22 @@ func (c *Client) BlockWrites(ctx context.Context, index string) error {
 	}
 	return fmt.Errorf("write block for %s was not fully acknowledged", index)
 }
+
+// SetWriteBlock also works on closed indices. Before reading an open index for
+// verification, use BlockWrites as well to drain any in-flight writes.
+func (c *Client) SetWriteBlock(ctx context.Context, index string, blocked bool) error {
+	var response struct {
+		Acknowledged bool `json:"acknowledged"`
+	}
+	if err := c.jsonRequest(ctx, "PUT", "/"+url.PathEscape(index)+"/_settings", map[string]any{"index.blocks.write": blocked}, &response); err != nil {
+		return err
+	}
+	if !response.Acknowledged {
+		return fmt.Errorf("write-block setting for %s was not acknowledged", index)
+	}
+	return nil
+}
+
 func (c *Client) RefreshIndex(ctx context.Context, index string) error {
 	var response struct {
 		Shards struct {
@@ -234,6 +260,38 @@ type Fingerprint struct {
 	Hash  string `json:"hash"`
 }
 
+// FingerprintAccumulator records the exact documents observed in a completed
+// scroll, allowing destination readback without assuming the source is frozen.
+type FingerprintAccumulator struct {
+	sum   big.Int
+	count int64
+}
+
+func (a *FingerprintAccumulator) Add(docs []Document) error {
+	modulus := new(big.Int).Lsh(big.NewInt(1), 256)
+	for _, doc := range docs {
+		var value any
+		decoder := json.NewDecoder(bytes.NewReader(doc.Source))
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil {
+			return err
+		}
+		raw, err := json.Marshal([]any{doc.ID, doc.Routing, value})
+		if err != nil {
+			return err
+		}
+		digest := sha256.Sum256(raw)
+		a.sum.Add(&a.sum, new(big.Int).SetBytes(digest[:]))
+		a.sum.Mod(&a.sum, modulus)
+		a.count++
+	}
+	return nil
+}
+
+func (a *FingerprintAccumulator) Result() Fingerprint {
+	return Fingerprint{Count: a.count, Hash: fmt.Sprintf("%064x", &a.sum)}
+}
+
 func (c *Client) Fingerprint(ctx context.Context, index, query string) (Fingerprint, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -245,25 +303,10 @@ func (c *Client) Fingerprint(ctx context.Context, index, query string) (Fingerpr
 		for range errs {
 		}
 	}()
-	sum := new(big.Int)
-	modulus := new(big.Int).Lsh(big.NewInt(1), 256)
-	var count int64
+	var accumulator FingerprintAccumulator
 	for batch := range docs {
-		for _, doc := range batch {
-			var value any
-			decoder := json.NewDecoder(bytes.NewReader(doc.Source))
-			decoder.UseNumber()
-			if err := decoder.Decode(&value); err != nil {
-				return Fingerprint{}, err
-			}
-			raw, err := json.Marshal([]any{doc.ID, doc.Routing, value})
-			if err != nil {
-				return Fingerprint{}, err
-			}
-			digest := sha256.Sum256(raw)
-			sum.Add(sum, new(big.Int).SetBytes(digest[:]))
-			sum.Mod(sum, modulus)
-			count++
+		if err := accumulator.Add(batch); err != nil {
+			return Fingerprint{}, err
 		}
 	}
 	for err := range errs {
@@ -274,7 +317,7 @@ func (c *Client) Fingerprint(ctx context.Context, index, query string) (Fingerpr
 	if err := ctx.Err(); err != nil {
 		return Fingerprint{}, err
 	}
-	return Fingerprint{Count: count, Hash: fmt.Sprintf("%064x", sum)}, nil
+	return accumulator.Result(), nil
 }
 
 func (c *Client) WaitIndexGreen(ctx context.Context, index string) error {

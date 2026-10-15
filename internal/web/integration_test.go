@@ -36,10 +36,13 @@ func TestElasticsearchIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mode := range []string{"new", "rename", "overwrite", "local", "remap-cross", "remap-local"} {
+	for _, mode := range []string{"new", "rename", "overwrite", "local", "remap-cross", "remap-local", "live", "live-local", "live-remap", "live-closed", "live-closed-remap"} {
 		t.Run(mode, func(t *testing.T) {
+			live := strings.HasPrefix(mode, "live")
+			closedLive := strings.Contains(mode, "closed")
+			remap := strings.Contains(mode, "remap")
 			target, targetCfg, targetURL := target, targetCfg, targetURL
-			if mode == "local" || mode == "remap-local" {
+			if mode == "local" || mode == "remap-local" || mode == "live-local" {
 				target, targetCfg, targetURL = source, sourceCfg, sourceURL
 			}
 			existing := mode == "rename" || mode == "overwrite"
@@ -87,12 +90,28 @@ func TestElasticsearchIntegration(t *testing.T) {
 			if _, err := source.BulkInsert(ctx, name, docs); err != nil {
 				t.Fatal(err)
 			}
-			if err := source.BlockWrites(ctx, name); err != nil {
+			if live {
+				if err := source.RefreshIndex(ctx, name); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := source.BlockWrites(ctx, name); err != nil {
+					t.Fatal(err)
+				}
+				if err := source.CloseIndex(ctx, name); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if closedLive {
+				if err := source.CloseIndex(ctx, name); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := source.GetIndexDetail(ctx, name)
+			if err != nil {
 				t.Fatal(err)
 			}
-			if err := source.CloseIndex(ctx, name); err != nil {
-				t.Fatal(err)
-			}
+			beforeSettings, _ := json.Marshal(before.Settings)
 			if existing {
 				create(target)
 				if _, err := target.BulkInsert(ctx, name, []elastic.Document{{ID: "keep", Source: json.RawMessage(`{"original":true}`)}}); err != nil {
@@ -111,7 +130,7 @@ func TestElasticsearchIntegration(t *testing.T) {
 			restoreState(MigrationState{})
 			s := New(source, target, sourceURL, targetURL, sourceCfg, targetCfg, "", log, 8080)
 			s.StatePath = filepath.Join(t.TempDir(), "state.json")
-			request := map[string]any{"indices": []string{name}, "collision_action": "rename"}
+			request := map[string]any{"indices": []string{name}, "collision_action": "rename", "allow_live_source": live}
 			if mode == "overwrite" {
 				a, b, err := s.validateClusters(ctx, nil)
 				if err != nil {
@@ -120,7 +139,7 @@ func TestElasticsearchIntegration(t *testing.T) {
 				request["collision_action"], request["source_uuid"], request["target_uuid"] = "overwrite", a.ClusterUUID, b.ClusterUUID
 				request["overwrite_uuids"] = map[string]string{name: owned[1].uuid}
 			}
-			if strings.HasPrefix(mode, "remap-") {
+			if remap {
 				a, b, err := s.validateClusters(ctx, nil)
 				if err != nil {
 					t.Fatal(err)
@@ -128,6 +147,12 @@ func TestElasticsearchIntegration(t *testing.T) {
 				request["source_uuid"], request["target_uuid"] = a.ClusterUUID, b.ClusterUUID
 				request["query"] = "text:first"
 				request["remaps"] = map[string]RemapOptions{name: {Mapping: json.RawMessage(`{"properties":{"text":{"type":"keyword"},"large":{"type":"long"}}}`), Destination: "tmp_reindexed_" + name, OriginalAction: "backup", BackupIndex: "original_" + name, SourceUUID: owned[0].uuid, ConfirmRemoval: true}}
+				if live {
+					plans := request["remaps"].(map[string]RemapOptions)
+					plan := plans[name]
+					plan.OriginalAction, plan.BackupIndex, plan.ConfirmRemoval = "keep", "", false
+					plans[name] = plan
+				}
 			}
 			raw, _ := json.Marshal(request)
 			if w := call(s, "/api/migrate", string(raw)); w.Code != 200 {
@@ -164,10 +189,14 @@ func TestElasticsearchIntegration(t *testing.T) {
 				owned = append(owned, ownedIndex{source, idx.Remap.BackupIndex, idx.Remap.BackupUUID})
 			}
 			wantCount := int64(2)
-			if strings.HasPrefix(mode, "remap-") {
+			if remap {
 				wantCount = 1
 			}
-			if state.Active != nil || idx.Status != "completed" || idx.VerifiedCount != wantCount || idx.VerifiedHash == "" {
+			wantStatus := "completed"
+			if live {
+				wantStatus = "copied_live"
+			}
+			if state.Active != nil || idx.Status != wantStatus || idx.VerifiedCount != wantCount || idx.VerifiedHash == "" {
 				t.Fatalf("migration failed: %+v", idx)
 			}
 			if (mode == "rename" || mode == "local") && idx.TargetIndex == name {
@@ -182,11 +211,18 @@ func TestElasticsearchIntegration(t *testing.T) {
 					t.Fatal("original destination changed", err)
 				}
 			}
+			targetDetail, err := target.GetIndexDetail(ctx, idx.TargetIndex)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if elastic.WriteBlocked(targetDetail) != !live {
+				t.Fatal("destination write setting did not match source")
+			}
 			// Simulate restart after the last index checkpoint but before whole-job
 			// completion. Continue must re-read the saved copy and restore closed
 			// states, including when the mapping workflow removed the original.
 			history := state.History[0]
-			SetActiveMigration(&ActiveMigration{Source: history.Source, Dest: history.Dest, Query: history.Query, Direction: history.Direction, Indices: history.Indices})
+			SetActiveMigration(&ActiveMigration{AllowLiveSource: history.AllowLiveSource, Source: history.Source, Dest: history.Dest, Query: history.Query, Direction: history.Direction, Indices: history.Indices})
 			if err := SaveState(s.StatePath); err != nil {
 				t.Fatal(err)
 			}
@@ -200,7 +236,35 @@ func TestElasticsearchIntegration(t *testing.T) {
 			if status, err := previewIndexStatus(ctx, target, idx.TargetIndex); err != nil || status != "close" {
 				t.Fatal("destination state not restored", err)
 			}
-			if strings.HasPrefix(mode, "remap-") {
+			targetDetail, err = target.GetIndexDetail(ctx, idx.TargetIndex)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if elastic.WriteBlocked(targetDetail) != !live {
+				t.Fatal("Continue did not restore destination write setting")
+			}
+			if live {
+				after, err := source.GetIndexDetail(ctx, name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				afterSettings, _ := json.Marshal(after.Settings)
+				if !bytes.Equal(beforeSettings, afterSettings) || elastic.WriteBlocked(after) {
+					t.Fatal("live source settings changed")
+				}
+				wantState := "open"
+				if closedLive {
+					wantState = "close"
+				}
+				if status, err := previewIndexStatus(ctx, source, name); err != nil || status != wantState {
+					t.Fatal("live source state changed", err)
+				}
+				if !idx.AllowLiveSource || idx.CapturedHash == "" || idx.CapturedHash != idx.VerifiedHash || idx.CapturedCount != idx.VerifiedCount {
+					t.Fatalf("invalid capture verification: %+v", idx)
+				}
+				return
+			}
+			if remap {
 				if !idx.Remap.SourceDeleted || idx.Remap.BackupCount != 2 {
 					t.Fatalf("incomplete original backup: %+v", idx)
 				}

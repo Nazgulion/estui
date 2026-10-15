@@ -26,6 +26,9 @@ func newCopyName(source string, local bool) (string, error) {
 }
 
 func (s *Server) completeTransfer(ctx context.Context, src, dst *elastic.Client, j *migrateJob) error {
+	if j.AllowLiveSource {
+		return s.finishLiveCopy(ctx, src, dst, j)
+	}
 	if j.Remap.enabled() {
 		return s.finishRemap(ctx, src, dst, j)
 	}

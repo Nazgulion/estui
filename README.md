@@ -2,6 +2,11 @@
 
 Local web dashboard for copying and reindexing Elasticsearch indices, within or between clusters.
 
+Click the version in the top-right corner to view the changelog, newest version
+first. Release notes and the displayed version share one source:
+`internal/web/static/changelog.js`. Add a new entry at the top when preparing a
+version; the notes are bundled into the binary and work offline.
+
 ## Run
 
 Configure `sources`, `targets`, and optionally `port` in `config.yaml`, then run:
@@ -33,6 +38,12 @@ the filter returns to the first matching page. Selections survive page changes;
 pages. Refreshes and index actions preserve the filter and page, adjusting the
 page only when the remaining results no longer fill it.
 
+Each table also has **Sort by** and order controls for name, creation date,
+open/closed status, and size. Sorting applies to all filtered indices before
+pagination and keeps selections intact. Each panel remembers its own sort during
+refreshes and index actions. Creation dates are shown in UTC; sizes sort by bytes.
+Unavailable dates/sizes sort last in either direction.
+
 ## Reindex with a different mapping
 
 1. Select indices in the Migration tab and choose the direction. For a local
@@ -47,6 +58,9 @@ page only when the remaining results no longer fill it.
 4. Click **Review steps** to inspect the source/destination, names, supplied
    mapping, document filter, verification steps, and original-retention policy.
    Source removal requires a separate acknowledgement. Then click **Start reindex**.
+   To copy without adding a source write block, select **Allow live copy —
+   no write block**. This forces **Keep original unchanged** and changes
+   the verification scope as described below.
 
 The new index is created with the supplied mapping before documents are copied.
 The original mapping is never modified. All destination and backup names must be
@@ -95,7 +109,7 @@ Full document readback and mapping checks precede any original removal.
   determine whether the connections point to the same cluster. Ordinary same-cluster copies
   use `reindex_<name>_<unique suffix>` and preserve the original index. The separate
   mapping workflow below supports editable names and explicit original removal.
-- Source indices must already have an explicit write block. Stop application
+- By default, source indices must already have an explicit write block. Stop application
   writers first, then apply `PUT /your-index/_block/write` and check its result.
   estui does not unblock sources. Keep them blocked until the entire migration
   and recovery verification finish. Disabled or filtered `_source` is rejected.
@@ -132,14 +146,15 @@ Full document readback and mapping checks precede any original removal.
   are explicitly disabled on copies. Destination templates that introduce
   aliases or lifecycle settings are rejected before creation, including component
   templates. Template inspection permissions are required; errors fail closed.
-- After copying, estui write-blocks the destination, refreshes both indices, and
+- In the default mode, estui write-blocks the destination, refreshes both indices, and
   independently reads every matching source document and every destination
   document. It compares counts and a 256-bit multiset fingerprint covering
   `_id`, `_routing`, and canonical JSON `_source`, preserving large JSON numbers.
   It checks index UUIDs and write blocks before and after verification.
-- Only verified copies become **completed**. Destinations remain write-blocked
-  and are closed; retained sources return to their original open/closed state. Restoration failures
-  fail the job. Reopening a copy and enabling writes is a separate cutover step.
+- Only verified copies become **completed**. Destinations are closed and their
+  write-block state matches the source’s original state after successful
+  verification; retained sources return to their original open/closed state.
+  Restoration failures fail the job. Reopening a copy is a separate cutover step.
 - Source data, query semantics, templates, index identities, and cluster routing
   must remain stable during migration. Do not run external index-management,
   lifecycle deletion/rollover, template changes, or another migration tool on
@@ -175,6 +190,45 @@ cluster settings, templates, users, roles, ingest pipelines and lifecycle polici
 are not a complete-cluster migration or backup. Maintain tested Elasticsearch
 snapshots separately. TLS, least-privilege credentials, disk capacity, and
 production-version compatibility must be validated in your environment.
+
+## Live copy without adding a source write block
+
+The unchecked-by-default **Allow live copy — no write block** checkbox
+is available in migration confirmation, mapping reindex, and on the Continue card.
+It permits copying without an enforced source write block. Estui does not block
+writes, refresh, alter mappings/settings, back up, or delete that source. Closed
+sources are temporarily opened and closed again afterward, including on failure.
+Their original state is saved before opening; after a forced shutdown, restart
+and click Continue to finish recovery and restore that state. Until then, an
+interrupted source may remain open. Restoration errors fail the operation; index
+UUID checks prevent closing a replacement index with the same name. Destination
+overwrite and source removal/backup policies are rejected in this mode.
+
+During the scroll, estui records a count and SHA-256-based fingerprint of the
+captured IDs, routing, and canonical JSON contents. After copying, it write-blocks
+and refreshes the destination, reads it independently, and compares its count and
+fingerprint against the capture. It also checks index identities and any supplied
+mapping. Partial reads, bulk failures, or a destination mismatch fail the job.
+
+A successful result is **Live copy** (`copied_live`), with a visible warning in
+jobs and history: captured documents were verified, but equality with the current
+source was not. Later writes/deletes and changes not visible to the initial scroll
+are not synchronized. This mode cannot establish readiness for lossless cutover
+or original deletion. Destinations are blocked throughout verification, then closed.
+After success, the temporary write block is removed if the source was originally
+unblocked; otherwise the destination remains blocked. This original source state
+is checkpointed, so later source changes do not change the destination policy.
+Continue temporarily blocks the destination again before opening and reverifying
+it, then restores the saved write-block state on success. A verification failure
+keeps that block in place. Older completed checkpoints without the captured source
+write state retain their existing block.
+
+Consent and verification scope are checkpointed. Continue rechecks finished
+destinations against their captured fingerprints and restores originally closed
+sources; incomplete copies restart into fresh names. An unfinished ordinary copy that
+failed the write-block prerequisite can opt into live mode on Continue. Checkpoints
+with completed strict copies, replacement operations, or native tasks cannot be
+converted; start a separate copy instead.
 
 ## Development checks
 

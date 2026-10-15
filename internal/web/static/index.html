@@ -88,9 +88,16 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 
 .index-pager { display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--muted-fg);font-size:11px;flex-shrink:0; }
 .index-range { margin-right:auto;font-variant-numeric:tabular-nums;white-space:nowrap; }
-.index-page-size,.index-page-number,.index-page-nav { display:flex;align-items:center;gap:5px;white-space:nowrap; }
+.index-sort,.index-page-size,.index-page-number,.index-page-nav { display:flex;align-items:center;gap:5px;white-space:nowrap; }
 .index-pager .search-box { padding:3px 5px;font-size:11px;min-height:26px; }
-.index-page-size select { color-scheme:dark; }
+.index-pager select { color-scheme:dark; }
+.index-created { white-space:nowrap;color:var(--muted-fg);font-variant-numeric:tabular-nums;font-size:11px; }
+.live-consent { display:flex;align-items:flex-start;gap:9px;padding:10px 12px;margin:10px 0;border:1px solid var(--warn);border-radius:var(--radius-sm);background:rgba(245,158,11,.06);font-size:12px;line-height:1.5;cursor:pointer; }
+.live-consent input { flex:none;margin:3px 0 0;accent-color:var(--warn); }
+.live-consent strong { display:block;color:var(--warn);font-weight:600;margin-bottom:3px; }
+.live-consent span span { display:block;color:var(--muted-fg); }
+.live-summary { color:var(--warn);font-size:11px;line-height:1.5;margin:4px 0 8px; }
+.pg-dot.live { background:var(--warn); }
 .index-page-number input { width:48px;text-align:center;appearance:textfield; }
 .index-page-number input::-webkit-inner-spin-button,.index-page-number input::-webkit-outer-spin-button { appearance:none;margin:0; }
 .page-btn { display:grid;place-items:center;min-width:26px;height:26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:16px;cursor:pointer; }
@@ -100,16 +107,23 @@ tr.sel td:first-child { border-left:3px solid var(--primary);padding-left:7px; }
 @media (max-width:700px) { .panel-grid { grid-template-columns:1fr; } }
 </style>
 <link rel="stylesheet" href="/remap.css">
+<link rel="stylesheet" href="/changelog.css">
+<script src="/changelog.js" defer></script>
 </head>
 <body>
-<header><span class="logo">✦ estui</span><span class="subtitle">Elasticsearch TUI</span></header>
+<header><span class="logo">✦ estui</span><span class="subtitle">Elasticsearch TUI</span><button type="button" id="version-button" class="version-button" aria-haspopup="dialog" aria-controls="changelog-dialog" title="View changelog">Changelog</button></header>
 <nav>
   <button class="tab active" data-tab="indices">Indices</button>
   <button class="tab" data-tab="migration">Migration</button>
 </nav>
 <main id="main"></main>
-<footer id="footer"><span id="footer-count"></span><span>estui v3.0</span></footer>
+<footer id="footer"><span id="footer-count"></span></footer>
+<dialog id="changelog-dialog" class="changelog-dialog" aria-labelledby="changelog-title">
+  <div class="changelog-heading"><div><h2 id="changelog-title">What’s new</h2><p>Changes between estui versions</p></div><button type="button" id="changelog-close" class="changelog-close" aria-label="Close changelog" autofocus>×</button></div>
+  <div id="changelog-entries" class="changelog-entries"></div>
+</dialog>
 <div id="modal-container"></div>
+<script src="/live.js"></script>
 <script src="/remap.js"></script>
 <script src="/pagination.js"></script>
 <script>
@@ -184,10 +198,10 @@ function renderIndices(){
   h+=indexPager('indices',page);
   if(filtered.length===0)h+='<div class="card-body empty">'+(S.source.length?'No matching indices':'No indices')+'</div>';
   else {h+='<div class="card-body" id="indices-rows"><table><thead><tr>';
-    ['Sel','Index','Health','Status','Docs','Size','Pri','Rep'].forEach(function(hd){h+='<th>'+hd+'</th>';});
+    ['Sel','Index','Health','Status','Docs','Size','Created (UTC)','Pri','Rep'].forEach(function(hd){h+='<th>'+hd+'</th>';});
     h+='</tr></thead><tbody>';
     page.rows.forEach(function(idx){var is=S.selected[idx.name];
-    h+='<tr class="'+(is?'sel':'')+'" data-click="idx" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+H(idx.health)+'</td><td>'+L(idx.status)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+idx.primary+'</td><td>'+idx.replica+'</td></tr>';});
+    h+='<tr class="'+(is?'sel':'')+'" data-click="idx" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+H(idx.health)+'</td><td>'+L(idx.status)+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+idx.primary+'</td><td>'+idx.replica+'</td></tr>';});
     h+='</tbody></table></div>';}
   h+='</div>';
   var sc=Object.keys(S.selected).length;
@@ -216,6 +230,7 @@ function renderMigration(){
   // Active migration card
   if(!S.migrating&&S.state&&S.state.active){
     var a=S.state.active;
+    if(S.continueLiveKey!==a.started_at){S.continueLiveKey=a.started_at;S.continueLiveSource=false}
     h+='<div class="card"><div class="card-header" style="flex-direction:column;align-items:flex-start">';
     h+='<div style="font-size:14px;font-weight:700;color:var(--text)">'+E(a.description||'Migration')+'</div>';
     h+='<div style="font-size:11px;color:var(--muted-fg)">';
@@ -230,16 +245,17 @@ function renderMigration(){
     if(a.query)h+=' \u00b7 Query: <code style="background:var(--surface-hi);color:var(--primary);padding:1px 6px;border-radius:3px;font-size:11px">'+E(a.query)+'</code>';
     h+='</div></div><div class="card-body" style="padding:8px 14px">';
     a.indices.forEach(function(idx){
-      var cls=(idx.status==='completed'||idx.status==='skipped')?'done':idx.status==='running'?'running':idx.status==='failed'?'fail':'pending';
+      var cls=idx.status==='copied_live'?'live':(idx.status==='completed'||idx.status==='skipped')?'done':idx.status==='running'?'running':idx.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">';
       h+='<span style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</span>';
       h+='<div class="pg-grid" style="flex:1">';for(var i=0;i<10;i++)h+='<div class="pg-dot '+cls+'"></div>';h+='</div>';
-      h+='<span style="color:var(--muted-fg);min-width:70px;text-align:right">'+idx.status+(idx.docs_total>0?' '+F(idx.transferred)+'/'+F(idx.docs_total):'')+'</span></div>';
-      h+=remapSummary(idx.remap);
+      h+='<span style="color:var(--muted-fg);min-width:70px;text-align:right">'+E(migrationStatusLabel(idx.status))+(idx.docs_total>0?' '+F(idx.transferred)+'/'+F(idx.docs_total):'')+'</span></div>';
+      h+=remapSummary(idx.remap)+liveCopySummary(idx);
       if(idx.error)h+='<div style="color:var(--danger);font-size:11px;margin-bottom:6px">'+E(idx.error)+'</div>';
     });
-    var done=a.indices.filter(function(i){return i.status==='completed'||i.status==='skipped'}).length;
-    var left=a.indices.filter(function(i){return i.status!=='completed'&&i.status!=='skipped'}).length;
+    var done=a.indices.filter(function(i){return i.status==='completed'||i.status==='copied_live'||i.status==='skipped'}).length;
+    var left=a.indices.filter(function(i){return i.status!=='completed'&&i.status!=='copied_live'&&i.status!=='skipped'}).length;
+    if(!a.allow_live_source)h+=liveSourceConsent('continue-live-source',!!S.continueLiveSource,'S.continueLiveSource=this.checked');
     h+='<div style="display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
     h+='<span style="font-size:11px;color:var(--muted-fg)">'+done+' done \u00b7 '+left+' remaining</span><span style="flex:1"></span>';
     h+='<button class="btn btn-sm" onclick="checkCompat()">Check Compat</button>';
@@ -260,17 +276,17 @@ function renderMigration(){
 
   // Running migration jobs
   if(S.migrating||S.jobs.length>0){h+='<div class="card"><div class="card-header">Migration Jobs</div><div class="card-body" style="padding:4px 14px">';
-    S.jobs.forEach(function(j){var pct=j.total>0?Math.round(j.progress/j.total*100):0,cl=(j.status==='completed'||j.status==='skipped')?'done':j.status==='running'?'running':j.status==='failed'?'fail':'pending';
+    S.jobs.forEach(function(j){var pct=j.total>0?Math.round(j.progress/j.total*100):0,cl=j.status==='copied_live'?'live':(j.status==='completed'||j.status==='skipped')?'done':j.status==='running'?'running':j.status==='failed'?'fail':'pending';
       h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px">';
       h+='<div class="pg-dot '+cl+'"></div>';
       h+='<span>'+E(j.source_index)+(j.target_index!==j.source_index?' → '+E(j.target_index):'')+'</span>';
-      h+='<span style="color:var(--muted-fg)">'+j.status+(j.total>0?' '+pct+'%':'')+'</span>';
+      h+='<span style="color:var(--muted-fg)">'+E(migrationStatusLabel(j.status))+(j.total>0?' '+pct+'%':'')+'</span>';
       if((j.logs&&j.logs.length)||j.error){
         h+='<details style="margin:0"><summary style="cursor:pointer;font-size:10px;color:var(--muted);outline:none">logs</summary>';
         if(j.logs&&j.logs.length)h+='<div class="job-logs">'+j.logs.map(function(l){return E(l)}).join('\n')+'</div>';
         if(j.error)h+='<div style="color:var(--danger);font-size:10px;margin-top:2px">'+E(j.error)+'</div>';
         h+='</details>';}
-      h+='</div>';h+=remapSummary(j.remap);});
+      h+='</div>';h+=remapSummary(j.remap)+liveCopySummary(j);});
     h+='</div></div>';}
 
 
@@ -328,9 +344,9 @@ function renderMigration(){
       h+=indexPager('source',lp);
       if(ls.length===0)h+='<div class="card-body empty">'+(S.source.length?'No matching indices':'No indices')+'</div>';
       else{h+='<div class="card-body" id="source-rows"><table><thead><tr>';
-      h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Status</th></tr></thead><tbody>';
+      h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Created (UTC)</th><th>Status</th></tr></thead><tbody>';
       lp.rows.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='<div class="panel"><div class="card"><div class="card-header">'+E(tagB())+'</div>';
@@ -341,9 +357,9 @@ function renderMigration(){
       h+=indexPager('target',rp);
       if(rs.length===0)h+='<div class="card-body empty">'+(S.target.length?'No matching indices':'No indices')+'</div>';
       else{h+='<div class="card-body" id="target-rows"><table><thead><tr>';
-      h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Status</th></tr></thead><tbody>';
+      h+='<th>Sel</th><th>Index</th><th>Docs</th><th>Size</th><th>Created (UTC)</th><th>Status</th></tr></thead><tbody>';
       rp.rows.forEach(function(idx){var is=S.selected[idx.name];
-        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human)+'</td><td>'+L(idx.status)+'</td></tr>';});
+        h+='<tr class="'+(is?'sel':'')+'" data-click="mig" data-name="'+E(idx.name)+'"><td>'+(is?'\u2714':'\u2B1C')+'</td><td>'+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+'</td><td>'+F(idx.doc_count)+'</td><td>'+E(idx.size_human||'—')+'</td>'+indexCreatedCell(idx)+'<td>'+L(idx.status)+'</td></tr>';});
       h+='</tbody></table></div>';}
       h+='</div></div>';
       h+='</div>';
@@ -376,10 +392,11 @@ function renderMigration(){
       }
       h+='<div class="hist-card"><div class="hc-desc">'+E(hi.description||'Migration')+dirText+'</div>';
       h+='<div class="hc-detail">'+E(hi.source.host)+' \u2192 '+E(hi.dest.host)+' \u00b7 Completed: '+new Date(hi.completed_at).toLocaleString()+dur+' \u00b7 '+hi.indices.length+' indices</div>';
+      if(hi.allow_live_source)h+='<div class="live-summary">Live copy: original source retained; closed sources temporarily opened and restored. Verification covers captured documents only, not later source changes.</div>';
       h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:var(--muted);outline:none">Show indices</summary><div style="font-size:11px;color:var(--muted-fg);max-height:120px;overflow-y:auto;padding:4px 0">';
       hi.indices.forEach(function(idx){
-        h+='<div>\u2022 '+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+(idx.docs_total>0?' ('+F(idx.docs_total)+' docs)':'')+(idx.status!=='completed'?' — <span style="color:var(--danger)">'+E(idx.status)+'</span>':'')+'</div>';
-        h+=remapSummary(idx.remap);
+        h+='<div>\u2022 '+E(idx.name)+(idx.target_index&&idx.target_index!==idx.name?' → '+E(idx.target_index):'')+(idx.docs_total>0?' ('+F(idx.docs_total)+' docs)':'')+(idx.status!=='completed'?' — <span style="color:var(--danger)">'+E(migrationStatusLabel(idx.status))+'</span>':'')+'</div>';
+        h+=remapSummary(idx.remap)+liveCopySummary(idx);
       });
       h+='</div></details></div>';
     });
@@ -440,8 +457,8 @@ async function previewQuery(){
 }
 async function doMigrate(indices,desc,choice,intent){
   intent=intent||{direction:S.dir,query:S.query,source_uuid:S.srcInfo&&S.srcInfo.cluster_uuid,target_uuid:S.tgtInfo&&S.tgtInfo.cluster_uuid,overwrite_uuids:{}};
-  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,collision_action:choice,overwrite_uuids:choice==='overwrite'?intent.overwrite_uuids:{},query:intent.query,direction:intent.direction,source_uuid:intent.source_uuid,target_uuid:intent.target_uuid,force_scroll:true})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected={}}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
-async function doContinue(){try{await POST('/api/migrate/continue',{});S.selected={}}catch(e){alert('Error: '+e)};renderMigration()}
+  try{var r=await fetch('/api/migrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices:indices,description:desc,collision_action:choice,overwrite_uuids:choice==='overwrite'?intent.overwrite_uuids:{},query:intent.query,direction:intent.direction,source_uuid:intent.source_uuid,target_uuid:intent.target_uuid,force_scroll:true,allow_live_source:!!intent.allow_live_source})});var d=await r.json();if(!r.ok)throw new Error((d.error||'Error')+(d.missing?'\nMissing: '+d.missing.join(', '):'')+(d.hint?'\n'+d.hint:''));S.selected={}}catch(e){alert('Migration failed:\n'+e.message)};renderMigration()}
+async function doContinue(){var live=document.getElementById('continue-live-source');try{await POST('/api/migrate/continue',{allow_live_source:!!(live&&live.checked)});S.selected={};S.continueLiveSource=false}catch(e){alert('Error: '+e)};renderMigration()}
 async function doAbandon(){if(!window.confirm('Abandon?'))return;try{await POST('/api/migrate/abandon',{});S.state=await GET('/api/migrate/state')}catch(e){alert('Error: '+e)};renderMigration()}
 async function checkCompat(){try{S.compat=await GET('/api/check-compat')}catch(e){S.compat=null};renderMigration()}
 function swapRoles(){var sh=document.getElementById('src-host'),th=document.getElementById('tgt-host'),tmp=S.srcHost;S.srcHost=S.tgtHost;S.tgtHost=tmp;sh.value=S.srcHost;th.value=S.tgtHost;S.srcOK=false;S.tgtOK=false;Promise.all([testSource(),testDest()]).then(function(){doContinue()})}
@@ -461,7 +478,7 @@ function confirmMigration(names,desc){var intent={direction:S.dir,query:S.query,
 
   var h='<div class="modal-overlay" id="modal-bg"><div class="modal" style="max-width:560px">';
   h+='<h3 style="color:var(--primary)">\uD83D\uDE80 Start Migration</h3>';
-  h+='<div class="msg" style="line-height:1.6">Source indices must be write-blocked. Copies are independently verified, kept write-blocked, and closed. Choose the destination behavior below. Aliases are not automatically copied.<br>';
+  h+='<div class="msg" style="line-height:1.6">By default, source indices must already be write-blocked so the source and destination can be independently compared. The live-copy option below adds no source write block, temporarily opens closed sources, restores their initial state, and verifies captured documents only. Destinations are write-blocked during verification, then closed with the source’s original write-block state. Aliases are not automatically copied.<br>';
   h+='<strong>'+names.length+'</strong> indices will be migrated<br>';
   h+='<span style="color:var(--muted-fg)">Node A:</span> <strong style="color:var(--text)">'+E(nodeA)+'</strong> <span style="color:var(--muted)">('+E(hostA)+')</span><br>';
   h+='<span style="color:var(--muted-fg)">Node B:</span> <strong style="color:var(--text)">'+E(nodeB)+'</strong> <span style="color:var(--muted)">('+E(hostB)+')</span><br>';
@@ -473,6 +490,7 @@ function confirmMigration(names,desc){var intent={direction:S.dir,query:S.query,
   if(S.proxyMode)h+='<br><span style="color:var(--warn);font-size:11px">\u2139\uFE0F Proxy mode: data flows through estui (scroll+bulk)</span>';
   h+='</div>';
 
+  h+=liveSourceConsent('migration-live-source',false);
   if(desc)h+='<div class="msg" style="font-style:italic;color:var(--muted-fg)">\uD83D\uDCCB '+E(desc)+'</div>';
 
   if(local){
@@ -496,7 +514,7 @@ function confirmMigration(names,desc){var intent={direction:S.dir,query:S.query,
   document.getElementById('modal-container').innerHTML=h;
   document.getElementById('modal-bg').addEventListener('click',function(e){if(e.target===this)closeModal()});
   document.getElementById('modal-cancel').addEventListener('click',closeModal);
-  document.getElementById('modal-confirm').addEventListener('click',function(){var selected=document.querySelector('input[name="collision-action"]:checked');var choice=local?'rename':(selected?selected.value:'');if(choice==='overwrite'&&!document.getElementById('overwrite-ack').checked){alert('Confirm that the old destination data will be permanently deleted.');return}closeModal();doMigrate(names,desc,choice,intent)});}
+  document.getElementById('modal-confirm').addEventListener('click',function(){var selected=document.querySelector('input[name="collision-action"]:checked');var choice=local?'rename':(selected?selected.value:'');intent.allow_live_source=!!document.getElementById('migration-live-source').checked;if(intent.allow_live_source&&choice==='overwrite'){alert('Live copy cannot overwrite an existing destination. Choose a separate copy.');return}if(choice==='overwrite'&&!document.getElementById('overwrite-ack').checked){alert('Confirm that the old destination data will be permanently deleted.');return}closeModal();doMigrate(names,desc,choice,intent)});}
 function showConfirm(action,names,fn){if(!names.length)return;var sourceUUID=S.srcInfo&&S.srcInfo.cluster_uuid;
   var lbl={delete:'Delete',open:'Open',close:'Close'},msgs={delete:'Delete '+names.length+' indices? Cannot be undone.',open:'Open '+names.length+' indices.',close:'Close '+names.length+' indices.'};
   var h='<div class="modal-overlay" id="modal-bg"><div class="modal"><h3>\u26a0 '+lbl[action]+' '+names.length+' indices?</h3><div class="msg">'+msgs[action]+'</div>';

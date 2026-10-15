@@ -90,6 +90,12 @@ func verifyCopy(ctx context.Context, src, dst *elastic.Client, source, target, s
 }
 
 func (s *Server) verifyFinished(ctx context.Context, a *ActiveMigration, idx IndexState) (err error) {
+	if idx.AllowLiveSource || idx.Status == "copied_live" {
+		if idx.Status == "skipped" {
+			return nil
+		}
+		return s.verifyFinishedLive(ctx, a, idx)
+	}
 	if idx.Status != "completed" {
 		return nil
 	}
@@ -144,4 +150,40 @@ func restoreClosed(ctx context.Context, client *elastic.Client, name, uuid strin
 		return fmt.Errorf("index %s was replaced; refusing to restore its state", name)
 	}
 	return client.CloseIndex(ctx, name)
+}
+
+func verifyDestinationOwnership(ctx context.Context, dst *elastic.Client, name, uuid string) error {
+	detail, err := dst.GetIndexDetail(ctx, name)
+	if err != nil {
+		return err
+	}
+	if uuid == "" || elastic.Setting(detail, "uuid") != uuid {
+		return fmt.Errorf("destination %s identity changed; refusing to change write block", name)
+	}
+	if len(detail.Aliases) != 0 {
+		return fmt.Errorf("destination %s unexpectedly has aliases", name)
+	}
+	return nil
+}
+
+// Only release the verification block after successful verification and closure.
+// Missing metadata in older checkpoints conservatively retains the block.
+func restoreDestinationWriteBlock(ctx context.Context, dst *elastic.Client, name, uuid string, sourceBlocked *bool) error {
+	if sourceBlocked == nil || *sourceBlocked {
+		return nil
+	}
+	if err := verifyDestinationOwnership(ctx, dst, name, uuid); err != nil {
+		return err
+	}
+	if err := dst.SetWriteBlock(ctx, name, false); err != nil {
+		return fmt.Errorf("restore destination write setting: %w", err)
+	}
+	detail, err := dst.GetIndexDetail(ctx, name)
+	if err != nil {
+		return err
+	}
+	if elastic.Setting(detail, "uuid") != uuid || elastic.WriteBlocked(detail) {
+		return fmt.Errorf("destination %s write setting could not be restored", name)
+	}
+	return nil
 }

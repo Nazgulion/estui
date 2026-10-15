@@ -1,46 +1,335 @@
 {
-  "active": {
-    "description": "",
-    "direction": "target-\u003esource",
-    "force_scroll": true,
-    "overwrite": false,
-    "source": {
-      "host": "http://localhost:9203",
-      "cluster_name": "estui-test7",
-      "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
-    },
-    "dest": {
-      "host": "http://threats.eu.ast.co.rs:9200",
-      "cluster_name": "aspen-data-cluster",
-      "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
-    },
-    "indices": [
-      {
-        "remap": {
-          "options": {
-            "destination": "",
-            "original_action": "",
-            "source_uuid": ""
-          }
-        },
-        "target_index": "isp_records",
-        "source_uuid": "RLShh7xITJyMI-PL4ow_bw",
-        "verified_count": 0,
-        "name": "isp_records",
-        "docs_total": 1420635,
-        "status": "failed",
-        "transferred": 0,
-        "logs": [
-          "[21:31:20] starting migration",
-          "[21:31:20] ERROR: source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
-        ],
-        "error": "source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
-      }
-    ],
-    "started_at": "2026-10-12T21:31:20+02:00",
-    "updated_at": "2026-10-12T21:31:20+02:00"
-  },
   "history": [
+    {
+      "allow_live_source": true,
+      "overwrite": false,
+      "description": "",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "allow_live_source": true,
+          "captured_hash": "e2c8c9209f8efa66ae142f4819bbd5cc92cfe2274bccaef905c274915068adaa",
+          "captured_count": 4,
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "webcon-report-defense-20739",
+          "source_uuid": "Uy5IupyqRFqu94UZ57RslQ",
+          "verified_hash": "e2c8c9209f8efa66ae142f4819bbd5cc92cfe2274bccaef905c274915068adaa",
+          "verified_count": 4,
+          "target_uuid": "JQD1vvcsS7-aGIQ4l0SPpQ",
+          "source_was_closed": false,
+          "source_write_blocked": false,
+          "name": "webcon-report-defense-20739",
+          "docs_total": 4,
+          "status": "copied_live",
+          "transferred": 4,
+          "logs": [
+            "[10:56:51] starting migration",
+            "[10:56:51] live copy authorized: no source write block or settings changes; temporarily opened sources will be closed afterward; later writes are not synchronized",
+            "[10:56:52] copying through the configured source connection",
+            "[10:56:53] transferred 4 docs...",
+            "[10:56:53] verifying destination IDs, routing and contents against the documents captured during copying; source writes are not frozen",
+            "[10:56:54] Captured documents verified against destination; original source retained and its initial open/closed state restored on exit. Later source additions, updates and deletions are not synchronized. Current-source equality is not verified."
+          ]
+        }
+      ],
+      "started_at": "2026-10-15T10:56:51+02:00",
+      "completed_at": "2026-10-15T10:56:54+02:00"
+    },
+    {
+      "allow_live_source": true,
+      "overwrite": false,
+      "description": "",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "allow_live_source": true,
+          "captured_hash": "7dca15656813944b260640df7691d9216733ce3904e31bb8c1184d492c1de4ca",
+          "captured_count": 18000,
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "alerts_1_20740",
+          "source_uuid": "jbzubKhbRzKfQLB9JH1QWA",
+          "verified_hash": "7dca15656813944b260640df7691d9216733ce3904e31bb8c1184d492c1de4ca",
+          "verified_count": 18000,
+          "target_uuid": "A8V6lwqzQcazCVwf4SCt0Q",
+          "source_was_closed": false,
+          "source_write_blocked": false,
+          "name": "alerts_1_20740",
+          "docs_total": 18000,
+          "status": "copied_live",
+          "transferred": 18000,
+          "logs": [
+            "[09:03:04] starting migration",
+            "[09:03:04] live copy authorized: no source write block or settings changes; temporarily opened sources will be closed afterward; later writes are not synchronized",
+            "[09:03:04] copying through the configured source connection",
+            "[09:03:05] transferred 1000 docs...",
+            "[09:03:06] transferred 2000 docs...",
+            "[09:03:06] transferred 3000 docs...",
+            "[09:03:07] transferred 4000 docs...",
+            "[09:03:07] transferred 5000 docs...",
+            "[09:03:07] transferred 6000 docs...",
+            "[09:03:07] transferred 7000 docs...",
+            "[09:03:08] transferred 8000 docs...",
+            "[09:03:08] transferred 9000 docs...",
+            "[09:03:08] transferred 10000 docs...",
+            "[09:03:08] transferred 11000 docs...",
+            "[09:03:09] transferred 12000 docs...",
+            "[09:03:10] transferred 13000 docs...",
+            "[09:03:10] transferred 14000 docs...",
+            "[09:03:10] transferred 15000 docs...",
+            "[09:03:10] transferred 16000 docs...",
+            "[09:03:11] transferred 17000 docs...",
+            "[09:03:11] transferred 18000 docs...",
+            "[09:03:11] verifying destination IDs, routing and contents against the documents captured during copying; source writes are not frozen",
+            "[09:03:13] Captured documents verified against destination; original source retained and its initial open/closed state restored on exit. Later source additions, updates and deletions are not synchronized. Current-source equality is not verified."
+          ]
+        }
+      ],
+      "started_at": "2026-10-15T09:03:03+02:00",
+      "completed_at": "2026-10-15T09:03:13+02:00"
+    },
+    {
+      "allow_live_source": true,
+      "overwrite": false,
+      "description": "",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "allow_live_source": true,
+          "captured_hash": "f428c9ec779cc89460193b11201f968bf4c9676aa54bc5c17829fc3d798182e8",
+          "captured_count": 10,
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "webcon-report-aspen-20738",
+          "source_uuid": "EWV2Bu5bRjuqGlplJoVsfA",
+          "verified_hash": "f428c9ec779cc89460193b11201f968bf4c9676aa54bc5c17829fc3d798182e8",
+          "verified_count": 10,
+          "target_uuid": "kvMw5L_NSJifE-nkZnupqw",
+          "source_was_closed": false,
+          "source_write_blocked": false,
+          "name": "webcon-report-aspen-20738",
+          "docs_total": 10,
+          "status": "copied_live",
+          "transferred": 10,
+          "logs": [
+            "[15:37:43] starting migration",
+            "[15:37:43] live copy authorized: no source write block or settings changes; temporarily opened sources will be closed afterward; later writes are not synchronized",
+            "[15:37:44] copying through the configured source connection",
+            "[15:37:48] transferred 10 docs...",
+            "[15:37:48] verifying destination IDs, routing and contents against the documents captured during copying; source writes are not frozen",
+            "[15:37:48] Captured documents verified against destination; original source retained and its initial open/closed state restored on exit. Later source additions, updates and deletions are not synchronized. Current-source equality is not verified."
+          ]
+        }
+      ],
+      "started_at": "2026-10-13T15:37:43+02:00",
+      "completed_at": "2026-10-13T15:37:49+02:00"
+    },
+    {
+      "overwrite": false,
+      "description": " (abandoned)",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "security_events_1_20735",
+          "source_uuid": "fXvCdCSeSDCJF9cRGykcVQ",
+          "verified_count": 0,
+          "name": "security_events_1_20735",
+          "docs_total": 157721,
+          "status": "abandoned",
+          "transferred": 0,
+          "logs": [
+            "[14:25:52] starting migration",
+            "[14:25:52] ERROR: source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+          ],
+          "error": "source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+        }
+      ],
+      "started_at": "2026-10-13T14:25:52+02:00",
+      "completed_at": "2026-10-13T15:16:27+02:00"
+    },
+    {
+      "overwrite": false,
+      "description": " (abandoned)",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "webcon-report-aspen-20737",
+          "source_uuid": "_ExLP0Y4TZStCbEZ1ypXhQ",
+          "verified_count": 0,
+          "name": "webcon-report-aspen-20737",
+          "docs_total": 78,
+          "status": "abandoned",
+          "transferred": 0,
+          "logs": [
+            "[14:23:01] starting migration",
+            "[14:23:01] ERROR: source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+          ],
+          "error": "source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+        }
+      ],
+      "started_at": "2026-10-13T14:23:01+02:00",
+      "completed_at": "2026-10-13T14:25:07+02:00"
+    },
+    {
+      "overwrite": false,
+      "description": " (abandoned)",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "webcon-report-aspen-20738",
+          "source_uuid": "EWV2Bu5bRjuqGlplJoVsfA",
+          "verified_count": 0,
+          "name": "webcon-report-aspen-20738",
+          "docs_total": 10,
+          "status": "abandoned",
+          "transferred": 0,
+          "logs": [
+            "[14:21:53] starting migration",
+            "[14:21:53] ERROR: source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+          ],
+          "error": "source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+        }
+      ],
+      "started_at": "2026-10-13T14:21:53+02:00",
+      "completed_at": "2026-10-13T14:22:20+02:00"
+    },
+    {
+      "overwrite": false,
+      "description": " (abandoned)",
+      "direction": "target-\u003esource",
+      "source": {
+        "host": "http://localhost:9203",
+        "cluster_name": "estui-test7",
+        "cluster_uuid": "R0QEQVfWSji5iSrozTmYNw"
+      },
+      "dest": {
+        "host": "http://threats.eu.ast.co.rs:9200",
+        "cluster_name": "aspen-data-cluster",
+        "cluster_uuid": "wDG9qcQTS9uXULReTpa0mg"
+      },
+      "indices": [
+        {
+          "remap": {
+            "options": {
+              "destination": "",
+              "original_action": "",
+              "source_uuid": ""
+            }
+          },
+          "target_index": "isp_records",
+          "source_uuid": "RLShh7xITJyMI-PL4ow_bw",
+          "verified_count": 0,
+          "name": "isp_records",
+          "docs_total": 1420635,
+          "status": "abandoned",
+          "transferred": 0,
+          "logs": [
+            "[21:31:20] starting migration",
+            "[21:31:20] ERROR: source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+          ],
+          "error": "source index must have an explicit write block before migration; stop writers and apply index.blocks.write first"
+        }
+      ],
+      "started_at": "2026-10-12T21:31:20+02:00",
+      "completed_at": "2026-10-13T09:13:41+02:00"
+    },
     {
       "overwrite": true,
       "description": "111",
@@ -258,802 +547,6 @@
       ],
       "started_at": "2026-08-17T15:00:03+02:00",
       "completed_at": "2026-08-17T15:00:18+02:00"
-    },
-    {
-      "description": "mikrotik 20861 prebacivanje",
-      "direction": "source-\u003etarget",
-      "source": {
-        "host": "http://es-01.prod.ast.local:9200",
-        "cluster_name": "aspen-data-cluster",
-        "cluster_uuid": "M2XHtcqNTou8boMmLzqKBg"
-      },
-      "dest": {
-        "host": "http://localhost:9200",
-        "cluster_name": "docker-cluster",
-        "cluster_uuid": "ezt_t4K2TqiBgkDlGcT0XA"
-      },
-      "indices": [
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "mikrotic_firewall_events__1_20681",
-          "docs_total": 10139,
-          "status": "queued",
-          "transferred": 0
-        }
-      ],
-      "started_at": "2026-08-17T14:55:29+02:00",
-      "completed_at": "2026-08-17T14:55:33+02:00"
-    },
-    {
-      "description": "",
-      "direction": "target-\u003esource",
-      "source": {
-        "host": "http://localhost:9200",
-        "cluster_name": "docker-cluster",
-        "cluster_uuid": "ezt_t4K2TqiBgkDlGcT0XA"
-      },
-      "dest": {
-        "host": "http://localhost:9201",
-        "cluster_name": "docker-cluster",
-        "cluster_uuid": "6Ms3x-HPSxSqaYGnAGFN9A"
-      },
-      "indices": [
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "app-events-2024-01",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 10
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "app-events-2024-02",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 10
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "app-events-2024-03",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 10
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "app-events-2024-04",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 10
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "app-events-2024-05",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 10
-        }
-      ],
-      "started_at": "2026-08-13T17:19:03+02:00",
-      "completed_at": "2026-08-13T17:19:14+02:00"
-    },
-    {
-      "description": "Sync prod and stage",
-      "direction": "source-\u003etarget",
-      "source": {
-        "host": "http://localhost:9200",
-        "cluster_name": "docker-cluster",
-        "cluster_uuid": "l3ObuastR2mG5gSYW-HMiQ"
-      },
-      "dest": {
-        "host": "http://localhost:9201",
-        "cluster_name": "docker-cluster",
-        "cluster_uuid": "1lX-ChJDQ-mulEVl-Qvo7g"
-      },
-      "indices": [
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-00",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-01",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-02",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-03",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-04",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-05",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-06",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-07",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-08",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-09",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-10",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-11",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 0
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-12",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-13",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-14",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-15",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-16",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-17",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-18",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-19",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-20",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-21",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-22",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-23",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-24",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-25",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-26",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-27",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-28",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-29",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-30",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-31",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-32",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-33",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-34",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-35",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-36",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-37",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-38",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-39",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-40",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-41",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-42",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 14
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-43",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 17
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-44",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 20
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-45",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 8
-        },
-        {
-          "remap": {
-            "options": {
-              "destination": "",
-              "original_action": "",
-              "source_uuid": ""
-            }
-          },
-          "verified_count": 0,
-          "name": "tgt-46",
-          "docs_total": 0,
-          "status": "completed",
-          "transferred": 11
-        }
-      ],
-      "started_at": "2026-08-11T12:25:25+02:00",
-      "completed_at": "2026-08-11T12:28:34+02:00"
     }
   ]
 }

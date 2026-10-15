@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -15,7 +16,8 @@ type IndexInfo struct {
 	Health    string
 	Status    string
 	DocCount  int64
-	SizeBytes int64
+	SizeBytes *int64
+	CreatedAt *int64
 	SizeHuman string
 	Primary   int
 	Replica   int
@@ -34,13 +36,17 @@ func (c *Client) ListIndices(ctx context.Context) ([]IndexInfo, error) {
 	resp, err := c.es.Cat.Indices(
 		c.es.Cat.Indices.WithContext(ctx),
 		c.es.Cat.Indices.WithFormat("json"),
-		c.es.Cat.Indices.WithH("health", "status", "index", "uuid", "pri", "rep", "docs.count", "store.size"),
+		c.es.Cat.Indices.WithH("health", "status", "index", "uuid", "pri", "rep", "docs.count", "store.size", "creation.date"),
+		c.es.Cat.Indices.WithBytes("b"),
 		c.es.Cat.Indices.WithS("index"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list indices: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.IsError() {
+		return nil, fmt.Errorf("list indices failed (status %d)", resp.StatusCode)
+	}
 
 	type catIndex struct {
 		Index     *string `json:"index"`
@@ -51,6 +57,7 @@ func (c *Client) ListIndices(ctx context.Context) ([]IndexInfo, error) {
 		Rep       *string `json:"rep"`
 		DocsCount *string `json:"docs.count"`
 		StoreSize *string `json:"store.size"`
+		CreatedAt *string `json:"creation.date"`
 	}
 
 	var raw []catIndex
@@ -64,24 +71,38 @@ func (c *Client) ListIndices(ctx context.Context) ([]IndexInfo, error) {
 			continue
 		}
 		info := IndexInfo{
-			Name:    *ci.Index,
-			Health:  strVal(ci.Health),
-			Status:  strVal(ci.Status),
-			UUID:    strVal(ci.UUID),
-			Primary: parseInt(strVal(ci.Pri, "0")),
-			Replica: parseInt(strVal(ci.Rep, "0")),
-			Shards:  parseInt(strVal(ci.Pri, "0")) + parseInt(strVal(ci.Rep, "0")),
+			Name:      *ci.Index,
+			Health:    strVal(ci.Health),
+			Status:    strVal(ci.Status),
+			UUID:      strVal(ci.UUID),
+			Primary:   parseInt(strVal(ci.Pri, "0")),
+			Replica:   parseInt(strVal(ci.Rep, "0")),
+			Shards:    parseInt(strVal(ci.Pri, "0")) + parseInt(strVal(ci.Rep, "0")),
+			CreatedAt: optionalCatNumber(ci.CreatedAt),
+			SizeBytes: optionalCatNumber(ci.StoreSize),
 		}
 		if ci.DocsCount != nil {
 			info.DocCount = parseInt64(*ci.DocsCount)
 		}
-		if ci.StoreSize != nil {
-			info.SizeBytes = parseSizeString(*ci.StoreSize)
-			info.SizeHuman = formatBytes(info.SizeBytes)
+		if info.SizeBytes != nil {
+			info.SizeHuman = formatBytes(*info.SizeBytes)
 		}
 		indices = append(indices, info)
 	}
 	return indices, nil
+}
+
+// CAT omits some metrics for closed indices. Preserve unknown values rather
+// than sorting them as zero-byte indices or as Unix-epoch creation dates.
+func optionalCatNumber(value *string) *int64 {
+	if value == nil {
+		return nil
+	}
+	number, err := strconv.ParseInt(*value, 10, 64)
+	if err != nil || number < 0 {
+		return nil
+	}
+	return &number
 }
 
 func (c *Client) GetIndexDetail(ctx context.Context, name string) (*IndexDetail, error) {

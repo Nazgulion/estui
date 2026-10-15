@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +27,18 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 	if len(req.Indices) == 0 {
 		httpJSON(w, 400, map[string]string{"error": "no indices provided"})
 		return
+	}
+	if req.AllowLiveSource {
+		if req.CollisionAction == "overwrite" {
+			httpJSON(w, 400, map[string]string{"error": "live copy cannot overwrite existing destinations; choose a separate copy"})
+			return
+		}
+		for _, plan := range req.Remaps {
+			if plan.OriginalAction != "" && plan.OriginalAction != "keep" {
+				httpJSON(w, 400, map[string]string{"error": "live copy requires keeping the original; source backup/removal is not permitted"})
+				return
+			}
+		}
 	}
 
 	if req.Direction != "" && req.Direction != "source->target" && req.Direction != "target->source" {
@@ -173,7 +186,7 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 	overwrite := action == "rename" // Internal permission to allocate a separate copy.
 	for i, name := range req.Indices {
 		if options, ok := req.Remaps[name]; ok {
-			jobs[i] = migrateJob{SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: options.Destination, Status: "queued", Query: req.Query, Direction: req.Direction, Local: local, Remap: RemapState{Options: options, Phase: "copying"}}
+			jobs[i] = migrateJob{AllowLiveSource: req.AllowLiveSource, SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: options.Destination, Status: "queued", Query: req.Query, Direction: req.Direction, Local: local, Remap: RemapState{Options: options, Phase: "copying"}}
 			continue
 		}
 		target := name
@@ -185,7 +198,7 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		job := migrateJob{SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: target, Status: "queued", Overwrite: overwrite, Query: req.Query, Direction: req.Direction, ForceScroll: req.ForceScroll, Local: local}
+		job := migrateJob{AllowLiveSource: req.AllowLiveSource, SourceIndex: name, SourceUUID: srcIndexMap[name], TargetIndex: target, Status: "queued", Overwrite: overwrite, Query: req.Query, Direction: req.Direction, ForceScroll: req.ForceScroll, Local: local}
 		if !local && exists && action == "overwrite" {
 			expected := req.OverwriteUUIDs[name]
 			if expected == "" || expected != destUUIDs[name] || req.SourceUUID != srcInfo.ClusterUUID || req.TargetUUID != tgtInfo.ClusterUUID {
@@ -207,15 +220,16 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 
 	// Create state entry
 	active := &ActiveMigration{
-		Description: req.Description,
-		Query:       req.Query,
-		Direction:   req.Direction,
-		ForceScroll: req.ForceScroll,
-		Overwrite:   &overwrite,
-		Source:      ConnectionState{Host: s.SourceCfg.Hosts[0]},
-		Dest:        ConnectionState{Host: s.TargetCfg.Hosts[0]},
-		Indices:     make([]IndexState, len(req.Indices)),
-		StartedAt:   time.Now().Format(time.RFC3339),
+		AllowLiveSource: req.AllowLiveSource,
+		Description:     req.Description,
+		Query:           req.Query,
+		Direction:       req.Direction,
+		ForceScroll:     req.ForceScroll,
+		Overwrite:       &overwrite,
+		Source:          ConnectionState{Host: s.SourceCfg.Hosts[0]},
+		Dest:            ConnectionState{Host: s.TargetCfg.Hosts[0]},
+		Indices:         make([]IndexState, len(req.Indices)),
+		StartedAt:       time.Now().Format(time.RFC3339),
 	}
 	if srcInfo != nil {
 		active.Source.ClusterName = srcInfo.ClusterName
@@ -226,7 +240,7 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 		active.Dest.ClusterUUID = tgtInfo.ClusterUUID
 	}
 	for i, idx := range req.Indices {
-		active.Indices[i] = IndexState{Remap: jobs[i].Remap, Name: idx, SourceUUID: srcIndexMap[idx], TargetIndex: jobs[i].TargetIndex, FinalIndex: jobs[i].FinalIndex, ReplaceUUID: jobs[i].ReplaceUUID, ReplacePhase: jobs[i].ReplacePhase, Local: local, Status: "queued"}
+		active.Indices[i] = IndexState{AllowLiveSource: req.AllowLiveSource, Remap: jobs[i].Remap, Name: idx, SourceUUID: srcIndexMap[idx], TargetIndex: jobs[i].TargetIndex, FinalIndex: jobs[i].FinalIndex, ReplaceUUID: jobs[i].ReplaceUUID, ReplacePhase: jobs[i].ReplacePhase, Local: local, Status: "queued"}
 		count, _ := srcClient.Count(ctx, idx)
 		if count > 0 {
 			active.Indices[i].DocsTotal = count
@@ -318,10 +332,18 @@ func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err erro
 		if !j.Remap.SourceDeleted && !j.Remap.uncertain() && j.SourceWasClosed != nil && *j.SourceWasClosed && j.SourceUUID != "" {
 			err = errors.Join(err, closeOwned(src, j.SourceIndex, j.SourceUUID))
 		}
-		if err == nil && j.Status == "completed" {
+		if err == nil && (j.Status == "completed" || j.Status == "copied_live") {
 			err = closeOwned(dst, j.TargetIndex, j.TargetUUID)
+			if err == nil {
+				err = restoreDestinationWriteBlock(cleanup, dst, j.TargetIndex, j.TargetUUID, j.SourceWriteBlocked)
+			}
 		}
 	}()
+	if j.AllowLiveSource {
+		if err := validateLiveJob(j); err != nil {
+			return err
+		}
+	}
 	if j.Remap.enabled() && j.Remap.uncertain() {
 		return fmt.Errorf("original deletion outcome is unknown; manual reconciliation required")
 	}
@@ -336,7 +358,11 @@ func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err erro
 	if err != nil {
 		return err
 	}
-	sourceUUID, err := elastic.SourceIdentity(detail)
+	identity := elastic.SourceIdentity
+	if j.AllowLiveSource {
+		identity = elastic.ReadableSourceIdentity
+	}
+	sourceUUID, err := identity(detail)
 	if err != nil {
 		return err
 	}
@@ -349,6 +375,10 @@ func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err erro
 	}
 	migrateMu.Lock()
 	j.SourceUUID = sourceUUID
+	if j.SourceWriteBlocked == nil {
+		blocked := elastic.WriteBlocked(detail)
+		j.SourceWriteBlocked = &blocked
+	}
 	if j.SourceWasClosed == nil {
 		closed := status == "close"
 		j.SourceWasClosed = &closed
@@ -358,6 +388,7 @@ func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err erro
 		return err
 	}
 	if status == "close" {
+		jobLog(j, "temporarily opening source; its original closed state is checkpointed and will be restored")
 		if err := src.OpenIndex(ctx, j.SourceIndex); err != nil {
 			return err
 		}
@@ -365,14 +396,18 @@ func (s *Server) runIndexMigration(ctx context.Context, j *migrateJob) (err erro
 			return err
 		}
 	}
-	// The explicit block API waits for in-flight writes to drain.
-	if err := src.BlockWrites(ctx, j.SourceIndex); err != nil {
-		return err
+	if !j.AllowLiveSource {
+		// The explicit block API waits for in-flight writes to drain.
+		if err := src.BlockWrites(ctx, j.SourceIndex); err != nil {
+			return err
+		}
+		if err := src.RefreshIndex(ctx, j.SourceIndex); err != nil {
+			return err
+		}
+	} else {
+		jobLog(j, "live copy authorized: no source write block or settings changes; temporarily opened sources will be closed afterward; later writes are not synchronized")
 	}
-	if err := src.RefreshIndex(ctx, j.SourceIndex); err != nil {
-		return err
-	}
-	if j.Remap.enabled() && j.Remap.Phase != "copying" {
+	if !j.AllowLiveSource && j.Remap.enabled() && j.Remap.Phase != "copying" {
 		return s.finishRemap(ctx, src, dst, j)
 	}
 	if j.FinalIndex != "" && j.ReplacePhase != "staging" {
@@ -473,6 +508,7 @@ func (s *Server) prepareDestination(ctx context.Context, dst *elastic.Client, j 
 		j.Total = 0
 		j.VerifiedHash = ""
 		j.VerifiedCount = 0
+		j.CapturedHash, j.CapturedCount = "", 0
 		migrateMu.Unlock()
 		jobLog(j, "preserved %s; new destination is %s", previous, j.TargetIndex)
 	}
@@ -560,6 +596,13 @@ func (s *Server) handleMigrateContinue(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, 405, map[string]string{"error": "POST required"})
 		return
 	}
+	var req struct {
+		AllowLiveSource bool `json:"allow_live_source"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req); err != nil && err != io.EOF {
+		httpJSON(w, 400, map[string]string{"error": "invalid Continue request"})
+		return
+	}
 	migrateMu.Lock()
 	defer migrateMu.Unlock()
 	if migrateActive {
@@ -576,6 +619,31 @@ func (s *Server) handleMigrateContinue(w http.ResponseWriter, r *http.Request) {
 	if _, _, err := s.validateClusters(ctx, st.Active); err != nil {
 		httpJSON(w, 409, map[string]string{"error": err.Error()})
 		return
+	}
+	if req.AllowLiveSource && !st.Active.AllowLiveSource {
+		// Only convert an unfinished, non-destructive plan. A mixed plan could
+		// otherwise modify a source while revalidating an older completed copy.
+		for _, idx := range st.Active.Indices {
+			if !idx.AllowLiveSource && indexFinished(idx.Status) {
+				httpJSON(w, 409, map[string]string{"error": "cannot change a completed strict checkpoint to live copy; start a separate new migration"})
+				return
+			}
+			if err := validateLiveJob(liveCheckpointJob(idx)); err != nil {
+				httpJSON(w, 409, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+		previous := GetState()
+		st.Active.AllowLiveSource = true
+		for i := range st.Active.Indices {
+			st.Active.Indices[i].AllowLiveSource = true
+		}
+		SetActiveMigration(st.Active)
+		if err := SaveState(s.StatePath); err != nil {
+			restoreState(previous)
+			httpJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 	var jobs []migrateJob
 	for _, idx := range st.Active.Indices {
@@ -614,13 +682,14 @@ func (s *Server) handleMigrateContinue(w http.ResponseWriter, r *http.Request) {
 		// Old checkpoints without a choice must default to skipping existing destinations.
 		overwrite := st.Active.Overwrite != nil && *st.Active.Overwrite
 		jobs = append(jobs, migrateJob{
+			AllowLiveSource: idx.AllowLiveSource, CapturedHash: idx.CapturedHash, CapturedCount: idx.CapturedCount,
 			Remap: idx.Remap, SourceIndex: idx.Name, TargetIndex: checkpointTarget(idx), Status: "queued",
 			SourceUUID: idx.SourceUUID, VerifiedHash: idx.VerifiedHash, VerifiedCount: idx.VerifiedCount, RetainedTargets: append([]string(nil), idx.RetainedTargets...),
 			Resume:     idx.Status == "failed" || idx.Status == "running" || idx.Status == "verified" || idx.Status == "verifying",
 			FinalIndex: idx.FinalIndex, ReplaceUUID: idx.ReplaceUUID, ReplacePhase: idx.ReplacePhase, StageIndex: idx.StageIndex, StageUUID: idx.StageUUID, Local: st.Active.Source.ClusterUUID == st.Active.Dest.ClusterUUID,
 			Overwrite: overwrite, Query: st.Active.Query, Direction: st.Active.Direction,
 			ForceScroll: st.Active.ForceScroll, TaskID: idx.TaskID,
-			TargetUUID: idx.TargetUUID, SourceWasClosed: idx.SourceWasClosed,
+			TargetUUID: idx.TargetUUID, SourceWasClosed: idx.SourceWasClosed, SourceWriteBlocked: idx.SourceWriteBlocked,
 			Progress: idx.Transferred, Total: idx.DocsTotal, Logs: append([]string(nil), idx.Logs...),
 		})
 	}
@@ -709,7 +778,13 @@ func copyDocuments(ctx context.Context, src, dst *elastic.Client, j *migrateJob)
 	}()
 
 	total := int64(0)
+	var captured elastic.FingerprintAccumulator
 	for batch := range docCh {
+		if j.AllowLiveSource {
+			if err := captured.Add(batch); err != nil {
+				return err
+			}
+		}
 		created, err := dst.BulkInsert(ctx, j.TargetIndex, batch)
 		total += int64(created)
 		migrateMu.Lock()
@@ -733,6 +808,10 @@ func copyDocuments(ctx context.Context, src, dst *elastic.Client, j *migrateJob)
 	migrateMu.Lock()
 	j.Progress = total
 	j.Total = total
+	if j.AllowLiveSource {
+		fp := captured.Result()
+		j.CapturedHash, j.CapturedCount = fp.Hash, fp.Count
+	}
 	migrateMu.Unlock()
 
 	return nil

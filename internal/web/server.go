@@ -26,7 +26,8 @@ type indexJSON struct {
 	Status    string `json:"status"`
 	DocCount  int64  `json:"doc_count"`
 	SizeHuman string `json:"size_human"`
-	SizeBytes int64  `json:"size_bytes"`
+	SizeBytes *int64 `json:"size_bytes"`
+	CreatedAt *int64 `json:"created_at"`
 	Primary   int    `json:"primary"`
 	Replica   int    `json:"replica"`
 	UUID      string `json:"uuid"`
@@ -44,6 +45,7 @@ type clusterInfo struct {
 }
 
 type migrateRequest struct {
+	AllowLiveSource bool                    `json:"allow_live_source,omitempty"`
 	Remaps          map[string]RemapOptions `json:"remaps,omitempty"`
 	CollisionAction string                  `json:"collision_action,omitempty"`
 	OverwriteUUIDs  map[string]string       `json:"overwrite_uuids,omitempty"`
@@ -58,34 +60,38 @@ type migrateRequest struct {
 }
 
 type migrateJob struct {
-	Remap        RemapState `json:"remap,omitempty"`
-	FinalIndex   string     `json:"final_index,omitempty"`
-	ReplaceUUID  string     `json:"replace_uuid,omitempty"`
-	ReplacePhase string     `json:"replace_phase,omitempty"`
-	StageIndex   string     `json:"stage_index,omitempty"`
-	StageUUID    string     `json:"stage_uuid,omitempty"`
-	Local        bool       `json:"local,omitempty"`
+	AllowLiveSource bool       `json:"allow_live_source,omitempty"`
+	CapturedHash    string     `json:"captured_hash,omitempty"`
+	CapturedCount   int64      `json:"captured_count,omitempty"`
+	Remap           RemapState `json:"remap,omitempty"`
+	FinalIndex      string     `json:"final_index,omitempty"`
+	ReplaceUUID     string     `json:"replace_uuid,omitempty"`
+	ReplacePhase    string     `json:"replace_phase,omitempty"`
+	StageIndex      string     `json:"stage_index,omitempty"`
+	StageUUID       string     `json:"stage_uuid,omitempty"`
+	Local           bool       `json:"local,omitempty"`
 
-	SourceUUID       string   `json:"source_uuid,omitempty"`
-	VerifiedHash     string   `json:"verified_hash,omitempty"`
-	VerifiedCount    int64    `json:"verified_count"`
-	RetainedTargets  []string `json:"retained_targets,omitempty"`
-	TargetUUID       string   `json:"target_uuid,omitempty"`
-	SourceWasClosed  *bool    `json:"source_was_closed,omitempty"`
-	Resume           bool     `json:"-"`
-	TaskID           string   `json:"task_id,omitempty"`
-	ReindexUncertain bool     `json:"reindex_uncertain,omitempty"`
-	SourceIndex      string   `json:"source_index"`
-	TargetIndex      string   `json:"target_index"`
-	Status           string   `json:"status"`
-	Progress         int64    `json:"progress"`
-	Total            int64    `json:"total"`
-	Error            string   `json:"error,omitempty"`
-	Logs             []string `json:"logs,omitempty"`
-	Overwrite        bool     `json:"-"`
-	Query            string   `json:"-"`
-	Direction        string   `json:"-"`
-	ForceScroll      bool     `json:"-"`
+	SourceUUID         string   `json:"source_uuid,omitempty"`
+	VerifiedHash       string   `json:"verified_hash,omitempty"`
+	VerifiedCount      int64    `json:"verified_count"`
+	RetainedTargets    []string `json:"retained_targets,omitempty"`
+	TargetUUID         string   `json:"target_uuid,omitempty"`
+	SourceWasClosed    *bool    `json:"source_was_closed,omitempty"`
+	SourceWriteBlocked *bool    `json:"source_write_blocked,omitempty"`
+	Resume             bool     `json:"-"`
+	TaskID             string   `json:"task_id,omitempty"`
+	ReindexUncertain   bool     `json:"reindex_uncertain,omitempty"`
+	SourceIndex        string   `json:"source_index"`
+	TargetIndex        string   `json:"target_index"`
+	Status             string   `json:"status"`
+	Progress           int64    `json:"progress"`
+	Total              int64    `json:"total"`
+	Error              string   `json:"error,omitempty"`
+	Logs               []string `json:"logs,omitempty"`
+	Overwrite          bool     `json:"-"`
+	Query              string   `json:"-"`
+	Direction          string   `json:"-"`
+	ForceScroll        bool     `json:"-"`
 }
 
 type bulkRequest struct {
@@ -446,6 +452,7 @@ func toIndexJSON(indices []elastic.IndexInfo) []indexJSON {
 			DocCount:  idx.DocCount,
 			SizeHuman: idx.SizeHuman,
 			SizeBytes: idx.SizeBytes,
+			CreatedAt: idx.CreatedAt,
 			Primary:   idx.Primary,
 			Replica:   idx.Replica,
 			UUID:      idx.UUID,

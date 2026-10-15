@@ -1,17 +1,19 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const html=fs.readFileSync(__dirname+'/static/index.html','utf8');
+const liveJS=fs.readFileSync(__dirname+'/static/live.js','utf8');
 const part=(from,to)=>html.slice(html.indexOf(from),html.indexOf(to,html.indexOf(from)));
-function harness(choice,ack=true,local=false){
+function harness(choice,ack=true,local=false,live=false){
  let modal='',sent,click,warning;
  const ctx={S:{dir:'source->target',query:'status:active',source:[{name:'test',uuid:'source-index'}],target:[{name:'test',uuid:'confirmed-destination'}],selected:{test:true},srcInfo:{cluster_uuid:'source'},tgtInfo:{cluster_uuid:local?'source':'target'}},E:String,renderMigration(){},alert(e){warning=e},fetch:async(u,o)=>{sent=JSON.parse(o.body);return{ok:true,json:async()=>({})}},document:{querySelector(){return modal&&!local?{value:choice}:null},getElementById(id){
  if(id==='modal-container')return{set innerHTML(v){modal=v}};
  if(id==='overwrite-ack')return modal?{checked:ack}:null;
+ if(id==='migration-live-source')return{checked:live};
  if(id==='mig-query')return{value:'status:active'};
  if(id==='modal-confirm')return{addEventListener(_,fn){click=fn}};
  return{addEventListener(){}};
  }}};
  vm.createContext(ctx);
- vm.runInContext(part('async function doMigrate','async function doContinue')+part('function confirmMigration','function showConfirm')+part('function closeModal','async function runBulk'),ctx);
+ vm.runInContext(liveJS+part('async function doMigrate','async function doContinue')+part('function confirmMigration','function showConfirm')+part('function closeModal','async function runBulk'),ctx);
  return{ctx,click:()=>click(),sent:()=>sent,modal:()=>modal,warning:()=>warning};
 }
 for(const choice of ['rename','overwrite'])test('confirmation preserves choice '+choice,()=>{
@@ -40,7 +42,7 @@ function remapHarness(){
  let html='',sent,alerts=[]; const elements={};
  function el(id){return elements[id]||(elements[id]={value:'',checked:false,style:{},handlers:{},addEventListener(event,fn){this.handlers[event]=fn}})}
  const ctx={S:{selected:{test:true},dir:'source->target',source:[{name:'test',uuid:'source-index'}],target:[],srcInfo:{cluster_uuid:'source'},tgtInfo:{cluster_uuid:'dest'},srcHost:'https://source',tgtHost:'https://dest'},E:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),crypto:require('node:crypto').webcrypto,TextEncoder,Uint8Array,alert:e=>alerts.push(String(e)),renderMigration(){},POST:async(_,r)=>{sent=r},closeModal(){html=''},document:{getElementById(id){if(id==='modal-container')return{set innerHTML(v){html=v}};return el(id)}}};
- vm.createContext(ctx);vm.runInContext(remapJS,ctx);
+ vm.createContext(ctx);vm.runInContext(liveJS+remapJS,ctx);
  return{ctx,el,html:()=>html,sent:()=>sent,alerts,click:async id=>el(id).handlers.click.call(el(id)),input(id,value,event='input'){const e=el(id);e.value=value;e.handlers[event].call(e)}};
 }
 test('mapping editor reviews editable names and pins identities',async()=>{
@@ -71,7 +73,7 @@ function paginationHarness(){
  const main={innerHTML:'',scrollHeight:0,scrollTop:0,clientHeight:0,handlers:{},addEventListener(event,fn){this.handlers[event]=fn}};
  const ctx={document:{activeElement:null,getElementById:id=>id==='main'?main:null,querySelectorAll:()=>[]},setInterval(){},setTimeout(){},alert(e){throw Error(e)}};
  vm.createContext(ctx);
- vm.runInContext(remapJS+paginationJS+part('var S=','\ninit();'),ctx);
+ vm.runInContext(liveJS+remapJS+paginationJS+part('var S=','\ninit();'),ctx);
  const rows=prefix=>Array.from({length:237},(_,i)=>({name:prefix+String(i).padStart(3,'0'),uuid:prefix+i,status:'open',health:'green',doc_count:1,size_human:'1kb',primary:1,replica:0}));
  Object.assign(ctx.S,{source:rows('a-'),target:rows('b-'),srcOK:true,tgtOK:true,srcInfo:{cluster_uuid:'a'},tgtInfo:{cluster_uuid:'b'}});
  return{ctx,main,visible:()=>Array.from(main.innerHTML.matchAll(/<tr[^>]*data-name="([^"]+)"/g),m=>m[1]),click(cmd,name){const el={dataset:{click:cmd,name}};main.handlers.click({target:{closest:selector=>selector==='[data-click]'?el:null}})}};
@@ -108,3 +110,78 @@ test('bulk action keeps filter and current page',async()=>{
  h.ctx.POST=async()=>({results:[{index:'a-151',ok:true}]});h.ctx.loadAll=async()=>{};
  await h.ctx.runBulk('close');assert.equal(h.ctx.S.indicesFilter,'^a-1');assert.equal(h.ctx.S.pages.indices.page,3);assert.equal(h.visible()[0],'a-150');
 });
+
+test('sorting uses all filtered rows before paging and preserves source order and selection',()=>{
+ const h=paginationHarness();
+ h.ctx.S.source.forEach((row,i)=>{row.created_at=1700000000000+i*1000;row.size_bytes=i*1024;row.status=i%2?'close':'open'});
+ h.ctx.renderIndices();h.click('idx','a-151');h.ctx.setIndexFilter('indices','^a-1');h.ctx.setIndexPage('indices',3);
+ h.ctx.setIndexSort('indices','created');assert.equal(h.visible()[0],'a-199');assert.equal(h.ctx.S.pages.indices.page,1);
+ h.ctx.setIndexPage('indices',2);assert.equal(h.visible()[0],'a-174');
+ h.ctx.setIndexSortDirection('indices','asc');assert.equal(h.visible()[0],'a-100');
+ h.ctx.setIndexSort('indices','size');assert.equal(h.visible()[0],'a-199');
+ h.ctx.setIndexSortDirection('indices','asc');assert.equal(h.visible()[0],'a-100');
+ h.ctx.setIndexSort('indices','status');assert.deepEqual(h.visible().slice(0,3),['a-100','a-102','a-104']);
+ h.ctx.setIndexSortDirection('indices','desc');assert.deepEqual(h.visible().slice(0,3),['a-101','a-103','a-105']);
+ h.ctx.setIndexSort('indices','name');h.ctx.setIndexSortDirection('indices','desc');assert.equal(h.visible()[0],'a-199');
+ assert.equal(h.ctx.S.source[0].name,'a-000');assert.equal(h.ctx.S.source[236].name,'a-236');assert.equal(h.ctx.S.indicesFilter,'^a-1');assert.equal(h.ctx.S.selected['a-151'],true);
+});
+
+test('sorts numeric metrics with stable name ties and unknown values last in both directions',()=>{
+ const h=paginationHarness();h.ctx.S.source=[
+  {name:'index-10',size_bytes:10,created_at:10,status:'close'},
+  {name:'index-2',size_bytes:10,created_at:10,status:'close'},
+  {name:'zero',size_bytes:0,created_at:0,status:'open'},
+  {name:'hundred',size_bytes:100,created_at:100,status:'open'},
+  {name:'missing',size_bytes:null,created_at:null,status:''},
+  {name:'unavailable'}
+ ];h.ctx.renderIndices();
+ for(const field of ['created','size']){
+  h.ctx.setIndexSort('indices',field);assert.deepEqual(h.visible(),['hundred','index-2','index-10','zero','missing','unavailable']);
+  h.ctx.setIndexSortDirection('indices','asc');assert.deepEqual(h.visible(),['zero','index-2','index-10','hundred','missing','unavailable']);
+ }
+ assert.match(h.main.innerHTML,/Created \(UTC\)/);assert.match(h.main.innerHTML,/1970-01-01 00:00/);assert.doesNotMatch(h.main.innerHTML,/Invalid Date/);
+ h.ctx.setIndexSort('indices','status');assert.deepEqual(h.visible(),['hundred','zero','index-2','index-10','missing','unavailable']);
+ h.ctx.setIndexSortDirection('indices','desc');assert.deepEqual(h.visible(),['index-2','index-10','hundred','zero','missing','unavailable']);
+});
+
+test('panels keep independent sort choices across refreshes, filtering and bulk actions',async()=>{
+ const h=paginationHarness();h.ctx.renderIndices();h.ctx.setIndexSort('indices','name');h.ctx.setIndexSortDirection('indices','desc');
+ h.ctx.renderMigration();h.ctx.setIndexSort('source','name');h.ctx.setIndexSortDirection('source','desc');
+ h.ctx.S.target.forEach((row,i)=>{row.size_bytes=i});h.ctx.setIndexSort('target','size');
+ assert.equal(h.visible()[0],'a-236');assert.equal(h.visible()[25],'b-236');
+ h.ctx.setIndexFilter('source','^a-1');assert.equal(h.visible()[0],'a-199');assert.equal(h.ctx.S.pages.target.sort,'size');
+ h.ctx.renderIndices();assert.equal(h.visible()[0],'a-236');h.ctx.setIndexPage('indices',3);h.ctx.S.selected={'a-151':true};
+ h.ctx.POST=async()=>({results:[{index:'a-151',ok:true}]});h.ctx.loadAll=async()=>{};
+ await h.ctx.runBulk('close');assert.equal(h.ctx.S.pages.indices.direction,'desc');assert.equal(h.ctx.S.pages.indices.page,3);assert.equal(h.visible()[0],'a-186');
+ assert.match(h.main.innerHTML,/Indices sort by/);assert.match(h.main.innerHTML,/Indices sort order/);
+});
+
+test('live copy consent is explicit and cannot authorize destination overwrite',async()=>{
+ const strict=harness('rename');strict.ctx.confirmMigration(['test'],'');await strict.click();assert.equal(strict.sent().allow_live_source,false);
+ const live=harness('rename',true,false,true);live.ctx.confirmMigration(['test'],'');assert.match(live.modal(),/no write block/);assert.match(live.modal(),/Closed sources are temporarily opened/);assert.match(live.modal(),/forced shutdown/);assert.match(live.modal(),/later additions, updates and deletions are not synchronized/);await live.click();assert.equal(live.sent().allow_live_source,true);
+ const overwrite=harness('overwrite',true,false,true);overwrite.ctx.confirmMigration(['test'],'');await overwrite.click();assert.equal(overwrite.sent(),undefined);assert.match(overwrite.warning(),/cannot overwrite/);
+});
+
+test('mapping live copy preserves consent through review and forces original retention',async()=>{
+ const h=remapHarness();h.ctx.startRemap();h.input('remap-json-0','{}');h.input('remap-action-0','backup','change');
+ const live=h.el('remap-live-source');live.checked=true;live.handlers.change.call(live);
+ assert.equal(h.el('remap-action-0').disabled,true);assert.equal(h.el('remap-action-0').value,'keep');
+ await h.click('remap-review');assert.match(h.html(),/captured documents only/);assert.match(h.html(),/fingerprint and count/);assert.match(h.html(),/temporarily open it if closed/);assert.match(h.html(),/restore its initial open\/closed state/);assert.doesNotMatch(h.html(),/permanently remove source index/);
+ await h.click('remap-back');assert.match(h.html(),/id="remap-live-source"[^>]* checked/);assert.equal(h.el('remap-action-0').disabled,true);
+ await h.click('remap-review');await h.click('remap-start');assert.equal(h.sent().allow_live_source,true);assert.equal(h.sent().remaps.test.original_action,'keep');assert.equal(h.sent().remaps.test.backup_index,'');
+});
+
+test('Continue sends checked live consent and completed live jobs explain verification scope',async()=>{
+ const h=paginationHarness();h.ctx.S.state={active:{started_at:'2026-10-13',source:{host:'source'},dest:{host:'target'},indices:[{name:'test',status:'failed'}]}};
+ h.ctx.renderMigration();assert.match(h.main.innerHTML,/continue-live-source/);
+ const get=h.ctx.document.getElementById;h.ctx.document.getElementById=id=>id==='continue-live-source'?{checked:true}:get(id);
+ let request;h.ctx.POST=async(url,body)=>{request={url,body}};await h.ctx.doContinue();assert.equal(request.url,'/api/migrate/continue');assert.equal(request.body.allow_live_source,true);
+ h.ctx.S.state={history:[{allow_live_source:true,source:{host:'source'},dest:{host:'target'},indices:[{name:'test',status:'copied_live',allow_live_source:true}]}]};
+ h.ctx.S.jobs=[{source_index:'test',target_index:'test',allow_live_source:true,status:'copied_live'}];h.ctx.renderMigration();assert.match(h.main.innerHTML,/Live copy/);assert.match(h.main.innerHTML,/Current-source equality is not verified/);assert.match(h.main.innerHTML,/pg-dot live/);
+});
+
+ test('live result explains restored destination write state',()=>{
+  const h=paginationHarness();
+  assert.match(h.ctx.liveCopySummary({allow_live_source:true,status:'copied_live',source_write_blocked:false}),/temporary write block removed/);
+  assert.match(h.ctx.liveCopySummary({allow_live_source:true,status:'copied_live',source_write_blocked:true}),/writes blocked/);
+ });

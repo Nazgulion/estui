@@ -34,7 +34,8 @@ function remapIndexHeading(name, i) {
   return '<div class="remap-index-heading"><span>Index ' + (i + 1) + '</span><h4>' + E(name) + '</h4></div>';
 }
 function showRemapEditor(draft) {
-  var h = '<p class="remap-intro">Create new indices with your mappings. Source indices must already be write-blocked.</p>' + remapRoute(draft);
+  var h = '<p class="remap-intro">Create new indices with your mappings. Default verification requires write-blocked sources; live copy adds no write block and temporarily opens closed sources.</p>' + remapRoute(draft);
+  h += liveSourceConsent('remap-live-source', !!draft.allow_live_source);
   draft.plans.forEach(function(p, i) {
     h += '<section class="remap-index">' + remapIndexHeading(p.name, i) + '<div class="remap-fields">';
     h += '<label class="remap-field"><span class="remap-label">New destination name</span><input id="remap-dest-' + i + '" value="' + E(p.destination) + '" spellcheck="false" autocomplete="off"></label>';
@@ -45,7 +46,19 @@ function showRemapEditor(draft) {
   });
   remapShell('Reindex with mapping', h, '<button class="btn" id="remap-review">Review steps →</button>', 1);
   var pending = 0, review = document.getElementById('remap-review');
+  document.getElementById('remap-live-source').addEventListener('change', function() {
+    draft.allow_live_source = this.checked;
+    draft.plans.forEach(function(p, i) {
+      var action = document.getElementById('remap-action-' + i);
+      action.disabled = !!draft.allow_live_source;
+      if (draft.allow_live_source) {
+        p.original_action = 'keep'; action.value = 'keep';
+        document.getElementById('remap-backup-label-' + i).style.display = 'none';
+      }
+    });
+  });
   draft.plans.forEach(function(p, i) {
+    document.getElementById('remap-action-' + i).disabled = !!draft.allow_live_source;
     [['dest','destination'],['json','mapping'],['backup','backup_index']].forEach(function(pair) {
       document.getElementById('remap-' + pair[0] + '-' + i).addEventListener('input', function() { p[pair[1]] = this.value; });
     });
@@ -67,6 +80,7 @@ function showRemapEditor(draft) {
     if (pending) return;
     try {
       draft.plans.forEach(function(p) {
+        if (draft.allow_live_source && p.original_action !== 'keep') throw Error('Live copy requires Keep original unchanged; source backup/removal is disabled.');
         validateMappingText(p.mapping);
         p.destination = p.destination.trim(); p.backup_index = p.backup_index.trim();
         if (!p.destination || p.destination === p.name) throw Error('Choose a new destination name for ' + p.name);
@@ -92,23 +106,24 @@ function remapRequest(draft, acknowledged) {
       confirm_removal: p.original_action !== 'keep' && acknowledged};
   });
   return {indices: draft.names.slice(), description: draft.description, direction: draft.direction, query: draft.query,
-    source_uuid: draft.source_uuid, target_uuid: draft.target_uuid, remaps: remaps};
+    source_uuid: draft.source_uuid, target_uuid: draft.target_uuid, allow_live_source: !!draft.allow_live_source, remaps: remaps};
 }
 function showRemapReview(draft) {
   var removal = draft.plans.some(function(p) { return p.original_action !== 'keep'; });
   var h = remapRoute(draft);
+  if (draft.allow_live_source) h += '<p class="live-summary"><strong>Live copy — no write block.</strong> Source mappings/settings are retained. Closed sources are temporarily opened and closed again afterward, including on failure. After a forced shutdown, restart and Continue to restore their state. Verification covers captured documents only, not later source changes. Original removal and overwrite are disabled.</p>';
   if (draft.query) h += '<p class="remap-filter">Destination document filter: <code>' + E(draft.query) + '</code>. Any backup includes <strong>all</strong> original documents.</p>';
   draft.plans.forEach(function(p, i) {
-    h += '<section class="remap-index">' + remapIndexHeading(p.name, i) + '<ol class="remap-steps"><li>Check cluster identities, source identity and write block; require unused destination and backup names.</li>';
+    h += '<section class="remap-index">' + remapIndexHeading(p.name, i) + '<ol class="remap-steps"><li>' + (draft.allow_live_source ? 'Check cluster and source identities; require a new destination. Save the original source state, then temporarily open it if closed.' : 'Check cluster identities, source identity and write block; require unused destination and backup names.') + '</li>';
     h += '<li>Create <strong>' + E(p.destination) + '</strong> on the destination with the supplied mapping and compatible source settings.</li>';
-    h += '<li>Copy documents, then verify IDs, routing, contents, and the supplied mapping. Mapping or document errors stop the operation.</li>';
+    h += '<li>' + (draft.allow_live_source ? 'Record a fingerprint and count of documents captured during copying. Independently read the destination and compare IDs, routing and contents with that fingerprint; verify the supplied mapping. Later source changes are not synchronized or verified.' : 'Copy documents, then verify IDs, routing, contents, and the supplied mapping. Mapping or document errors stop the operation.') + '</li>';
     if (p.original_action === 'backup') h += '<li>Create <strong>' + E(p.backup_index) + '</strong> on the <strong>source cluster</strong>, using the original mapping and all original documents. Independently verify the backup and close it with writes blocked.</li>';
     if (p.original_action !== 'keep') h += '<li class="remap-destructive">Only after verification, permanently remove source index <strong>' + E(p.name) + '</strong> and its aliases. ' + (p.original_action === 'delete' ? '<strong>No original backup will be created.</strong>' : 'The original data and mapping remain in the verified backup.') + '</li>';
-    else h += '<li>Keep the original index and mapping under <strong>' + E(p.name) + '</strong>; restore its initial open/closed state.</li>';
-    h += '<li>Keep the new index write-blocked and closed. Reopening it, enabling writes, and updating application aliases are separate operator actions.</li></ol>';
+    else h += '<li>Keep the original index and mapping under <strong>' + E(p.name) + '</strong>; ' + (draft.allow_live_source ? 'retain its mappings/settings and restore its initial open/closed state.' : 'restore its initial open/closed state.') + '</li>';
+    h += '<li>After successful verification, close the new index and match the source’s original write-block state. Reopening it and updating application aliases are separate operator actions.</li></ol>';
     h += '<details class="remap-mapping-preview"><summary>Supplied mapping</summary><pre>' + E(p.mapping) + '</pre></details></section>';
   });
-  h += '<p class="remap-note">Backup copies preserve documents and mappings, not aliases or lifecycle policies. Partial copies are retained after failure; Continue may allocate a fresh name, shown in the job log. An uncertain original deletion stops for manual reconciliation.</p>';
+  h += '<p class="remap-note">' + (draft.allow_live_source ? 'Partial copies are retained after failure. Continue retries incomplete indices into fresh copies using a new source read; it does not synchronize later writes into finished copies.' : 'Backup copies preserve documents and mappings, not aliases or lifecycle policies. Partial copies are retained after failure; Continue may allocate a fresh name, shown in the job log. An uncertain original deletion stops for manual reconciliation.') + '</p>';
   if (removal) h += '<label class="remap-ack"><input id="remap-ack" type="checkbox"><span>I confirm removal of the original indices listed above after verification, including their aliases.</span></label>';
   remapShell('Review reindex steps', h, '<button class="btn remap-secondary" id="remap-back">Back</button><button class="btn' + (removal ? ' btn-danger' : '') + '" id="remap-start">Start reindex</button>', 2);
   document.getElementById('remap-back').addEventListener('click', function() { showRemapEditor(draft); });

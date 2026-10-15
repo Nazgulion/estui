@@ -9,29 +9,33 @@ import (
 )
 
 type IndexState struct {
-	Remap        RemapState `json:"remap,omitempty"`
-	FinalIndex   string     `json:"final_index,omitempty"`
-	ReplaceUUID  string     `json:"replace_uuid,omitempty"`
-	ReplacePhase string     `json:"replace_phase,omitempty"`
-	StageIndex   string     `json:"stage_index,omitempty"`
-	StageUUID    string     `json:"stage_uuid,omitempty"`
-	Local        bool       `json:"local,omitempty"`
+	AllowLiveSource bool       `json:"allow_live_source,omitempty"`
+	CapturedHash    string     `json:"captured_hash,omitempty"`
+	CapturedCount   int64      `json:"captured_count,omitempty"`
+	Remap           RemapState `json:"remap,omitempty"`
+	FinalIndex      string     `json:"final_index,omitempty"`
+	ReplaceUUID     string     `json:"replace_uuid,omitempty"`
+	ReplacePhase    string     `json:"replace_phase,omitempty"`
+	StageIndex      string     `json:"stage_index,omitempty"`
+	StageUUID       string     `json:"stage_uuid,omitempty"`
+	Local           bool       `json:"local,omitempty"`
 
-	TargetIndex      string   `json:"target_index,omitempty"`
-	SourceUUID       string   `json:"source_uuid,omitempty"`
-	VerifiedHash     string   `json:"verified_hash,omitempty"`
-	VerifiedCount    int64    `json:"verified_count"`
-	RetainedTargets  []string `json:"retained_targets,omitempty"`
-	TargetUUID       string   `json:"target_uuid,omitempty"`
-	SourceWasClosed  *bool    `json:"source_was_closed,omitempty"`
-	TaskID           string   `json:"task_id,omitempty"`
-	ReindexUncertain bool     `json:"reindex_uncertain,omitempty"`
-	Name             string   `json:"name"`
-	DocsTotal        int64    `json:"docs_total"`
-	Status           string   `json:"status"`
-	Transferred      int64    `json:"transferred"`
-	Logs             []string `json:"logs,omitempty"`
-	Error            string   `json:"error,omitempty"`
+	TargetIndex        string   `json:"target_index,omitempty"`
+	SourceUUID         string   `json:"source_uuid,omitempty"`
+	VerifiedHash       string   `json:"verified_hash,omitempty"`
+	VerifiedCount      int64    `json:"verified_count"`
+	RetainedTargets    []string `json:"retained_targets,omitempty"`
+	TargetUUID         string   `json:"target_uuid,omitempty"`
+	SourceWasClosed    *bool    `json:"source_was_closed,omitempty"`
+	SourceWriteBlocked *bool    `json:"source_write_blocked,omitempty"`
+	TaskID             string   `json:"task_id,omitempty"`
+	ReindexUncertain   bool     `json:"reindex_uncertain,omitempty"`
+	Name               string   `json:"name"`
+	DocsTotal          int64    `json:"docs_total"`
+	Status             string   `json:"status"`
+	Transferred        int64    `json:"transferred"`
+	Logs               []string `json:"logs,omitempty"`
+	Error              string   `json:"error,omitempty"`
 }
 
 type ConnectionState struct {
@@ -47,28 +51,30 @@ type MigrationState struct {
 }
 
 type ActiveMigration struct {
-	Description string          `json:"description"`
-	Query       string          `json:"query,omitempty"`
-	Direction   string          `json:"direction,omitempty"`
-	ForceScroll bool            `json:"force_scroll,omitempty"`
-	Overwrite   *bool           `json:"overwrite,omitempty"`
-	Source      ConnectionState `json:"source"`
-	Dest        ConnectionState `json:"dest"`
-	Indices     []IndexState    `json:"indices"`
-	StartedAt   string          `json:"started_at"`
-	UpdatedAt   string          `json:"updated_at"`
+	AllowLiveSource bool            `json:"allow_live_source,omitempty"`
+	Description     string          `json:"description"`
+	Query           string          `json:"query,omitempty"`
+	Direction       string          `json:"direction,omitempty"`
+	ForceScroll     bool            `json:"force_scroll,omitempty"`
+	Overwrite       *bool           `json:"overwrite,omitempty"`
+	Source          ConnectionState `json:"source"`
+	Dest            ConnectionState `json:"dest"`
+	Indices         []IndexState    `json:"indices"`
+	StartedAt       string          `json:"started_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
 type HistoryEntry struct {
-	Overwrite   *bool           `json:"overwrite,omitempty"`
-	Description string          `json:"description"`
-	Query       string          `json:"query,omitempty"`
-	Direction   string          `json:"direction,omitempty"`
-	Source      ConnectionState `json:"source"`
-	Dest        ConnectionState `json:"dest"`
-	Indices     []IndexState    `json:"indices"`
-	StartedAt   string          `json:"started_at"`
-	CompletedAt string          `json:"completed_at"`
+	AllowLiveSource bool            `json:"allow_live_source,omitempty"`
+	Overwrite       *bool           `json:"overwrite,omitempty"`
+	Description     string          `json:"description"`
+	Query           string          `json:"query,omitempty"`
+	Direction       string          `json:"direction,omitempty"`
+	Source          ConnectionState `json:"source"`
+	Dest            ConnectionState `json:"dest"`
+	Indices         []IndexState    `json:"indices"`
+	StartedAt       string          `json:"started_at"`
+	CompletedAt     string          `json:"completed_at"`
 }
 
 var (
@@ -196,15 +202,16 @@ func CompleteMigration() {
 		return
 	}
 	h := HistoryEntry{
-		Overwrite:   state.Active.Overwrite,
-		Description: state.Active.Description,
-		Query:       state.Active.Query,
-		Direction:   state.Active.Direction,
-		Source:      state.Active.Source,
-		Dest:        state.Active.Dest,
-		Indices:     state.Active.Indices,
-		StartedAt:   state.Active.StartedAt,
-		CompletedAt: time.Now().Format(time.RFC3339),
+		AllowLiveSource: state.Active.AllowLiveSource,
+		Overwrite:       state.Active.Overwrite,
+		Description:     state.Active.Description,
+		Query:           state.Active.Query,
+		Direction:       state.Active.Direction,
+		Source:          state.Active.Source,
+		Dest:            state.Active.Dest,
+		Indices:         state.Active.Indices,
+		StartedAt:       state.Active.StartedAt,
+		CompletedAt:     time.Now().Format(time.RFC3339),
 	}
 	state.History = append([]HistoryEntry{h}, state.History...)
 	if len(state.History) > 10 {
@@ -225,15 +232,16 @@ func AbandonMigration() {
 		}
 	}
 	h := HistoryEntry{
-		Overwrite:   state.Active.Overwrite,
-		Description: state.Active.Description + " (abandoned)",
-		Query:       state.Active.Query,
-		Direction:   state.Active.Direction,
-		Source:      state.Active.Source,
-		Dest:        state.Active.Dest,
-		Indices:     state.Active.Indices,
-		StartedAt:   state.Active.StartedAt,
-		CompletedAt: time.Now().Format(time.RFC3339),
+		AllowLiveSource: state.Active.AllowLiveSource,
+		Overwrite:       state.Active.Overwrite,
+		Description:     state.Active.Description + " (abandoned)",
+		Query:           state.Active.Query,
+		Direction:       state.Active.Direction,
+		Source:          state.Active.Source,
+		Dest:            state.Active.Dest,
+		Indices:         state.Active.Indices,
+		StartedAt:       state.Active.StartedAt,
+		CompletedAt:     time.Now().Format(time.RFC3339),
 	}
 	state.History = append([]HistoryEntry{h}, state.History...)
 	if len(state.History) > 10 {
@@ -242,7 +250,9 @@ func AbandonMigration() {
 	state.Active = nil
 }
 
-func indexFinished(status string) bool { return status == "completed" || status == "skipped" }
+func indexFinished(status string) bool {
+	return status == "completed" || status == "copied_live" || status == "skipped"
+}
 
 func storeJob(j migrateJob) {
 	stateMu.Lock()
@@ -253,17 +263,19 @@ func storeJob(j migrateJob) {
 	for i := range state.Active.Indices {
 		idx := &state.Active.Indices[i]
 		if idx.Name == j.SourceIndex {
+			idx.AllowLiveSource, idx.CapturedHash, idx.CapturedCount = j.AllowLiveSource, j.CapturedHash, j.CapturedCount
 			idx.Remap = j.Remap
 			idx.Status, idx.Transferred, idx.Error = j.Status, j.Progress, j.Error
 			idx.TaskID, idx.ReindexUncertain = j.TaskID, j.ReindexUncertain
 			idx.TargetUUID, idx.SourceWasClosed = j.TargetUUID, j.SourceWasClosed
+			idx.SourceWriteBlocked = j.SourceWriteBlocked
 			idx.TargetIndex, idx.SourceUUID = j.TargetIndex, j.SourceUUID
 			idx.FinalIndex, idx.ReplaceUUID, idx.ReplacePhase = j.FinalIndex, j.ReplaceUUID, j.ReplacePhase
 			idx.StageIndex, idx.StageUUID, idx.Local = j.StageIndex, j.StageUUID, j.Local
 			idx.VerifiedHash, idx.VerifiedCount = j.VerifiedHash, j.VerifiedCount
 			idx.RetainedTargets = append([]string(nil), j.RetainedTargets...)
 			idx.Logs = append([]string(nil), j.Logs...)
-			if j.Total > 0 {
+			if j.Total > 0 || j.Status == "completed" || j.Status == "copied_live" {
 				idx.DocsTotal = j.Total
 			}
 			return
